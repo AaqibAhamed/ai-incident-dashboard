@@ -19,58 +19,101 @@ import { DashboardFacade } from '../data/dashboard.facade';
     MatProgressSpinnerModule,
   ],
   template: `
-    <h1>Manager dashboard</h1>
-    <mat-form-field appearance="outline">
-      <mat-label>Range</mat-label>
-      <mat-select [value]="range()" (selectionChange)="onRange($event)">
-        <mat-option value="week">Last week</mat-option>
-        <mat-option value="month">Last month</mat-option>
-      </mat-select>
-    </mat-form-field>
-    <button mat-stroked-button type="button" (click)="reload()">Refresh</button>
+    <header class="page-head">
+      <div class="page-head-text">
+        <h1 class="title">Manager dashboard</h1>
+        <p class="lede">Queue health and team load — soft signals, no noise.</p>
+      </div>
+      <div class="page-head-actions">
+        <mat-form-field appearance="outline" class="range-field" subscriptSizing="dynamic">
+          <mat-label>Range</mat-label>
+          <mat-select [value]="range()" (selectionChange)="onRange($event)" panelWidth="auto">
+            <mat-option value="week">Last week</mat-option>
+            <mat-option value="month">Last month</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <button mat-stroked-button type="button" (click)="reload()">Refresh</button>
+      </div>
+    </header>
 
     @if (facade.loading()) {
-      <mat-spinner diameter="40" />
-    } @else if (facade.error()) {
-      <p>{{ facade.error() }}</p>
-    } @else if (facade.metrics(); as m) {
-      <div class="kpi">
-        <mat-card><mat-card-title>Open</mat-card-title><mat-card-content>{{ m.openCount }}</mat-card-content></mat-card>
-        <mat-card><mat-card-title>Resolved</mat-card-title><mat-card-content>{{ m.resolvedCount }}</mat-card-content></mat-card>
-        <mat-card><mat-card-title>SLA breaches</mat-card-title><mat-card-content>{{ m.slaBreaches }}</mat-card-content></mat-card>
-        <mat-card><mat-card-title>Aging &gt; 7d</mat-card-title><mat-card-content>{{ m.agingOver7d }}</mat-card-content></mat-card>
+      <div class="state">
+        <mat-spinner diameter="40" />
       </div>
+    } @else if (facade.error()) {
+      <p class="soft-error">{{ facade.error() }}</p>
+    } @else if (facade.metrics(); as m) {
+      <section class="kpi" aria-label="Key metrics">
+        <mat-card class="stat surface-card" appearance="outlined">
+          <mat-card-content>
+            <div class="stat-label">Open</div>
+            <div class="stat-value">{{ m.openCount }}</div>
+            <div class="stat-hint">Active in queue</div>
+          </mat-card-content>
+        </mat-card>
+        <mat-card class="stat surface-card" appearance="outlined">
+          <mat-card-content>
+            <div class="stat-label">Resolved</div>
+            <div class="stat-value">{{ m.resolvedCount }}</div>
+            <div class="stat-hint">Closed in period</div>
+          </mat-card-content>
+        </mat-card>
+        <mat-card class="stat surface-card" appearance="outlined">
+          <mat-card-content>
+            <div class="stat-label">SLA attention</div>
+            <div class="stat-value">{{ m.slaBreaches }}</div>
+            <div class="stat-hint">Needs follow-up</div>
+          </mat-card-content>
+        </mat-card>
+        <mat-card class="stat surface-card" appearance="outlined">
+          <mat-card-content>
+            <div class="stat-label">Aging over 7d</div>
+            <div class="stat-value">{{ m.agingOver7d }}</div>
+            <div class="stat-hint">Still not closed</div>
+          </mat-card-content>
+        </mat-card>
+      </section>
+
       @defer (on viewport) {
-        <mat-card class="chart">
-          <mat-card-title>Team workload</mat-card-title>
+        <mat-card class="section surface-card chart" appearance="outlined">
+          <mat-card-header>
+            <mat-card-title>Team workload</mat-card-title>
+            <mat-card-subtitle>Open tickets by team</mat-card-subtitle>
+          </mat-card-header>
           <mat-card-content>
             @for (t of m.byTeam; track t.teamId) {
-              <div class="row">
-                <span class="name">{{ t.teamName }}</span>
-                <div class="bar-wrap">
-                  <div class="bar" [style.width.%]="barWidth(t.openTickets)"></div>
+              <div class="chart-row">
+                <span class="chart-name">{{ t.teamName }}</span>
+                <div class="bar-track">
+                  <div class="bar-fill" [style.width.%]="barWidth(t.openTickets)"></div>
                 </div>
-                <span class="num">{{ t.openTickets }}</span>
+                <span class="chart-num">{{ t.openTickets }}</span>
               </div>
             }
           </mat-card-content>
         </mat-card>
       } @placeholder {
-        <p class="muted">Scroll for charts…</p>
+        <p class="muted">Scroll for workload chart…</p>
       }
+
       @if (flags.aiHealth) {
         @defer (on viewport) {
-          <mat-card class="ai">
-            <mat-card-title>AI health summary</mat-card-title>
+          <mat-card class="section surface-card ai" appearance="outlined">
+            <mat-card-header>
+              <mat-card-title>AI health summary</mat-card-title>
+              <mat-card-subtitle>Optional narrative from your backend</mat-card-subtitle>
+            </mat-card-header>
             <mat-card-content>
               @if (aiErr()) {
-                <p class="warn">{{ aiErr() }}</p>
+                <p class="soft-error">{{ aiErr() }}</p>
               }
               @if (aiText()) {
-                <p>{{ aiText() }}</p>
+                <p class="ai-body">{{ aiText() }}</p>
               }
               <div class="row-actions">
-                <button mat-stroked-button type="button" (click)="runAi()" [disabled]="aiLoading()">Generate report</button>
+                <button mat-stroked-button type="button" (click)="runAi()" [disabled]="aiLoading()">
+                  Generate report
+                </button>
                 @if (aiLoading()) {
                   <button mat-button type="button" (click)="cancelAi()">Cancel</button>
                 }
@@ -78,52 +121,155 @@ import { DashboardFacade } from '../data/dashboard.facade';
             </mat-card-content>
           </mat-card>
         } @placeholder {
-          <p class="muted">AI block loads on viewport…</p>
+          <p class="muted">AI summary loads on scroll…</p>
         }
       }
     }
   `,
   styles: [
     `
+      :host {
+        display: block;
+      }
+      .page-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: var(--space-6);
+        margin-bottom: var(--space-8);
+        padding-bottom: var(--space-6);
+        border-bottom: 1px solid var(--color-border-soft);
+      }
+      .title {
+        margin-bottom: var(--space-2);
+      }
+      .lede {
+        margin: 0;
+        font-size: 0.95rem;
+        color: var(--color-text-muted);
+        max-width: 36rem;
+        line-height: 1.5;
+      }
+      .page-head-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--space-3);
+      }
+      .range-field {
+        width: 11rem;
+        margin: 0;
+      }
+      .state {
+        padding: var(--space-8) 0;
+        display: flex;
+        justify-content: center;
+      }
       .kpi {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-        gap: 1rem;
-        margin: 1rem 0;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: var(--space-5);
+        margin-bottom: var(--space-8);
       }
-      .chart {
-        margin-top: 1rem;
+      .stat mat-card-content {
+        padding: var(--space-6) !important;
       }
-      .row {
+      .stat-label {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--color-text-subtle);
+        margin-bottom: var(--space-2);
+      }
+      .stat-value {
+        font-size: 2rem;
+        font-weight: 600;
+        letter-spacing: -0.03em;
+        line-height: 1.15;
+        margin-bottom: var(--space-2);
+      }
+      .stat-hint {
+        font-size: 0.8rem;
+        color: var(--color-text-muted);
+      }
+      .section {
+        margin-top: var(--space-6);
+      }
+      .chart mat-card-header {
+        padding: var(--space-6) var(--space-6) 0;
+      }
+      .chart mat-card-content {
+        padding: var(--space-5) var(--space-6) var(--space-6) !important;
+      }
+      .chart-row {
         display: grid;
-        grid-template-columns: 120px 1fr 40px;
+        grid-template-columns: minmax(100px, 140px) 1fr 2.5rem;
         align-items: center;
-        gap: 0.5rem;
-        margin: 0.35rem 0;
+        gap: var(--space-4);
+        margin: var(--space-4) 0;
       }
-      .bar-wrap {
-        height: 10px;
-        background: #e0e0e0;
-        border-radius: 4px;
+      .chart-name {
+        font-size: 0.875rem;
+        color: var(--color-text-muted);
+      }
+      .bar-track {
+        height: 8px;
+        background: rgba(15, 23, 42, 0.06);
+        border-radius: 999px;
         overflow: hidden;
       }
-      .bar {
-        height: 100%;
-        background: #3f51b5;
+      :host-context(.app-dark-theme) .bar-track {
+        background: rgba(255, 255, 255, 0.08);
       }
-      .ai {
-        margin-top: 1rem;
+      .bar-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: rgba(71, 85, 105, 0.38);
+        min-width: 4px;
+        transition: width 0.25s ease;
+      }
+      :host-context(.app-dark-theme) .bar-fill {
+        background: rgba(148, 163, 184, 0.35);
+      }
+      .chart-num {
+        font-size: 0.875rem;
+        font-weight: 500;
+        text-align: right;
+        color: var(--color-text-muted);
+      }
+      .ai mat-card-header {
+        padding: var(--space-6) var(--space-6) 0;
+      }
+      .ai mat-card-content {
+        padding: var(--space-4) var(--space-6) var(--space-6) !important;
+      }
+      .ai-body {
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: var(--color-text-muted);
+        margin-bottom: var(--space-4);
       }
       .row-actions {
         display: flex;
-        gap: 0.5rem;
-        margin-top: 0.75rem;
+        flex-wrap: wrap;
+        gap: var(--space-3);
+        margin-top: var(--space-2);
       }
-      .warn {
-        color: #b00020;
+      .soft-error {
+        margin: 0 0 var(--space-4);
+        padding: var(--space-4);
+        font-size: 0.9rem;
+        color: var(--color-text-muted);
+        background: var(--color-surface);
+        border: 1px solid var(--color-border-hairline);
+        border-radius: var(--radius-sm);
       }
       .muted {
-        opacity: 0.7;
+        color: var(--color-text-subtle);
+        font-size: 0.9rem;
+        margin: var(--space-4) 0;
       }
     `,
   ],

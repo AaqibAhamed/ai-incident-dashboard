@@ -7,6 +7,10 @@ import { API_CONFIG } from '../tokens/api-config.token';
 
 const SESSION_KEY = 'aid_session';
 
+function storageAvailable(): boolean {
+  return typeof sessionStorage !== 'undefined' && sessionStorage != null;
+}
+
 export interface SessionUser {
   id: string;
   name: string;
@@ -45,6 +49,7 @@ export const AuthStore = signalStore(
   })),
   withMethods((store, http = inject(HttpClient), api = inject(API_CONFIG)) => {
     const persist = (): void => {
+      if (!storageAvailable()) return;
       const state: AuthState = {
         user: store.user(),
         accessToken: store.accessToken(),
@@ -55,6 +60,7 @@ export const AuthStore = signalStore(
 
     return {
       restoreFromStorage(): void {
+        if (!storageAvailable()) return;
         try {
           const raw = sessionStorage.getItem(SESSION_KEY);
           if (!raw) return;
@@ -79,7 +85,9 @@ export const AuthStore = signalStore(
 
       logout(): void {
         patchState(store, { user: null, accessToken: null, refreshToken: null });
-        sessionStorage.removeItem(SESSION_KEY);
+        if (storageAvailable()) {
+          sessionStorage.removeItem(SESSION_KEY);
+        }
       },
 
       /** Demo refresh — real .NET refresh flow plugs in here */

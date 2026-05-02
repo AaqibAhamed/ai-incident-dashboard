@@ -68,18 +68,20 @@ import { TicketsFacade } from '../data/tickets.facade';
               (cdkDropListDropped)="drop($event, col.targetStatus)"
             >
               @for (t of col.items; track t.id) {
-                <mat-card cdkDrag [cdkDragData]="t" appearance="outlined" class="card">
-                  <a class="title" [routerLink]="['/tickets', t.id]">{{ t.title }}</a>
-                  <div class="meta">
-                    <mat-chip-set>
-                      <mat-chip>{{ t.priority }}</mat-chip>
-                      <mat-chip>{{ t.status }}</mat-chip>
-                    </mat-chip-set>
-                    <span class="sla" [class.bad]="t.slaBreached">
-                      {{ t.slaBreached | slaStatus: t.slaDueAt }}
-                    </span>
-                  </div>
-                  <div class="sub">{{ t.updatedAt | timeAgo }}</div>
+                <mat-card cdkDrag [cdkDragData]="t" appearance="outlined" class="card surface-card">
+                  <mat-card-content class="card-body">
+                    <a class="title" [routerLink]="['/tickets', t.id]">{{ t.title }}</a>
+                    <div class="meta">
+                      <mat-chip-set>
+                        <mat-chip>{{ t.priority }}</mat-chip>
+                        <mat-chip>{{ t.status }}</mat-chip>
+                      </mat-chip-set>
+                      <span class="sla" [class.bad]="t.slaBreached">
+                        {{ t.slaBreached | slaStatus: t.slaDueAt }}
+                      </span>
+                    </div>
+                    <div class="sub">Updated {{ t.updatedAt | timeAgo }}</div>
+                  </mat-card-content>
                 </mat-card>
               }
             </div>
@@ -127,20 +129,31 @@ import { TicketsFacade } from '../data/tickets.facade';
         overflow: auto;
       }
       .card {
-        margin-bottom: 0.5rem;
+        margin-bottom: var(--space-3, 0.75rem);
         cursor: grab;
       }
+      .card-body {
+        padding: var(--space-5, 1.25rem) !important;
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-3, 0.75rem);
+      }
       .title {
+        display: block;
         font-weight: 600;
+        font-size: 0.9375rem;
+        line-height: 1.4;
         text-decoration: none;
         color: inherit;
+        margin: 0;
+        padding: 0;
       }
       .meta {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.5rem;
+        gap: var(--space-2, 0.5rem);
         align-items: center;
-        margin-top: 0.35rem;
+        margin: 0;
       }
       .sla.bad {
         color: #b00020;
@@ -148,8 +161,10 @@ import { TicketsFacade } from '../data/tickets.facade';
       }
       .sub {
         font-size: 0.75rem;
-        opacity: 0.7;
-        margin-top: 0.25rem;
+        color: var(--color-text-muted, rgba(15, 23, 42, 0.55));
+        margin: 0;
+        padding-top: var(--space-1, 0.25rem);
+        border-top: 1px solid var(--color-border-hairline, rgba(15, 23, 42, 0.06));
       }
       .sentinel {
         height: 24px;

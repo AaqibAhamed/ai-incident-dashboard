@@ -38,13 +38,20 @@ import { TicketsFacade } from '../data/tickets.facade';
       @let t = ticket()!;
       <div class="grid">
         <div class="main">
-          <mat-card>
-            <mat-card-title>{{ t.title }}</mat-card-title>
-            <mat-card-subtitle>
-              {{ t.priority }} · {{ t.status }} · {{ t.team?.name }}
-            </mat-card-subtitle>
-            <mat-card-content>
-              <p>{{ t.description }}</p>
+          <mat-card appearance="outlined" class="surface-card detail-main">
+            <mat-card-header class="detail-header">
+              <mat-card-title class="detail-title">{{ t.title }}</mat-card-title>
+              <mat-card-subtitle class="detail-subtitle">
+                {{ t.priority }} · {{ t.status }} · {{ t.team?.name }}
+              </mat-card-subtitle>
+            </mat-card-header>
+            <div class="detail-times" aria-label="Ticket timestamps">
+              <span>Created {{ t.createdAt | timeAgo }}</span>
+              <span class="dot" aria-hidden="true">·</span>
+              <span>Updated {{ t.updatedAt | timeAgo }}</span>
+            </div>
+            <mat-card-content class="detail-content">
+              <p class="description">{{ t.description }}</p>
               <mat-divider />
               <h3>Assign</h3>
               <mat-form-field appearance="outline">
@@ -78,8 +85,10 @@ import { TicketsFacade } from '../data/tickets.facade';
               </div>
             </mat-card-content>
           </mat-card>
-          <mat-card class="mt">
-            <mat-card-title>History</mat-card-title>
+          <mat-card class="mt surface-card" appearance="outlined">
+            <mat-card-header>
+              <mat-card-title>History</mat-card-title>
+            </mat-card-header>
             <mat-card-content>
               <mat-list>
                 @for (h of t.history; track h.id) {
@@ -93,8 +102,10 @@ import { TicketsFacade } from '../data/tickets.facade';
             </mat-card-content>
           </mat-card>
           @if (t.relatedTicketIds.length) {
-            <mat-card class="mt">
-              <mat-card-title>Related</mat-card-title>
+            <mat-card class="mt surface-card" appearance="outlined">
+              <mat-card-header>
+                <mat-card-title>Related</mat-card-title>
+              </mat-card-header>
               <mat-card-content>
                 <ul>
                   @for (rid of t.relatedTicketIds; track rid) {
@@ -107,8 +118,10 @@ import { TicketsFacade } from '../data/tickets.facade';
         </div>
         @if (flags.aiSummary) {
           @defer (on viewport) {
-            <mat-card class="side">
-              <mat-card-title>AI summary</mat-card-title>
+            <mat-card class="side surface-card" appearance="outlined">
+              <mat-card-header>
+                <mat-card-title>AI summary</mat-card-title>
+              </mat-card-header>
               <mat-card-content>
                 @if (aiSumErr()) {
                   <p class="warn">{{ aiSumErr() }}</p>
@@ -137,6 +150,41 @@ import { TicketsFacade } from '../data/tickets.facade';
   `,
   styles: [
     `
+      .detail-header {
+        padding: var(--space-6, 1.5rem) var(--space-6, 1.5rem) var(--space-3, 0.75rem);
+      }
+      .detail-title {
+        margin: 0 0 var(--space-2, 0.5rem);
+        font-size: 1.35rem;
+        line-height: 1.3;
+        font-weight: 600;
+      }
+      .detail-subtitle {
+        margin: 0;
+        line-height: 1.45;
+      }
+      .detail-times {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--space-2, 0.5rem);
+        margin: 0 var(--space-6, 1.5rem) var(--space-4, 1rem);
+        padding-bottom: var(--space-4, 1rem);
+        border-bottom: 1px solid var(--color-border-hairline, rgba(15, 23, 42, 0.06));
+        font-size: 0.8125rem;
+        color: var(--color-text-muted, rgba(15, 23, 42, 0.55));
+      }
+      .detail-times .dot {
+        opacity: 0.45;
+        user-select: none;
+      }
+      .detail-content {
+        padding-top: var(--space-5, 1.25rem) !important;
+      }
+      .description {
+        margin: 0 0 var(--space-5, 1.25rem);
+        line-height: 1.6;
+      }
       .grid {
         display: grid;
         grid-template-columns: 1fr 320px;
