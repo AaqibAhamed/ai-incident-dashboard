@@ -59,6 +59,7 @@ __screenshots__/
 *.snupkg
 TestResults/
 backend/data/
+backend/uploads/
 *.db
 *.db-shm
 *.db-wal

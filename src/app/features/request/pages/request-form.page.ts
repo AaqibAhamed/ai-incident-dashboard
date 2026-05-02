@@ -1,14 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
-import {
-  AbstractControl,
-  FormArray,
-  FormBuilder,
-  FormControl,
-  ReactiveFormsModule,
-  ValidationErrors,
-  Validators,
-} from '@angular/forms';
+import { AbstractControl, FormBuilder, FormControl, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -17,7 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatStepperModule } from '@angular/material/stepper';
-import { catchError, map, Observable, of, switchMap, timer } from 'rxjs';
+import { catchError, firstValueFrom, map, Observable, of, switchMap, timer } from 'rxjs';
 import type { TicketPriority } from '../../../../graphql/generated/graphql';
 import { API_CONFIG } from '../../../core/tokens/api-config.token';
 import { FEATURE_FLAGS } from '../../../core/tokens/feature-flags.token';
@@ -89,18 +81,19 @@ import { TicketsFacade } from '../../tickets/data/tickets.facade';
               <mat-error>{{ step2.controls.assetTag.errors?.['asset']?.['message'] }}</mat-error>
             }
           </mat-form-field>
-          <div formArrayName="attachments">
-            <h3>Attachments (labels)</h3>
-            @for (c of attachments.controls; track $index; let i = $index) {
-              <div class="row">
-                <mat-form-field appearance="outline" class="grow">
-                  <mat-label>File {{ i + 1 }}</mat-label>
-                  <input matInput [formControl]="$any(c)" />
-                </mat-form-field>
-                <button mat-button type="button" (click)="removeAttachment(i)">Remove</button>
+          <div class="uploads">
+            <h3>Attachments</h3>
+            <p class="hint">
+              Upload images, videos, or documents (PNG/JPG/SVG/MP4/PDF/DOC and similar file types).
+            </p>
+            <input type="file" multiple (change)="onPickFiles($event)" />
+            @if (pickedFiles().length) {
+              <div class="picked">
+                @for (f of pickedFiles(); track f.name + f.size) {
+                  <p>{{ f.name }} · {{ f.type || 'unknown type' }} · {{ (f.size / 1024).toFixed(1) }} KB</p>
+                }
               </div>
             }
-            <button mat-stroked-button type="button" (click)="addAttachment()">Add row</button>
           </div>
           <div class="actions">
             <button mat-button matStepperPrevious type="button">Back</button>
@@ -141,13 +134,23 @@ import { TicketsFacade } from '../../tickets/data/tickets.facade';
         display: flex;
         gap: 0.5rem;
       }
-      .row {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+      .uploads {
+        margin-top: 0.75rem;
       }
-      .grow {
-        flex: 1;
+      .hint {
+        margin: 0 0 0.5rem;
+        opacity: 0.75;
+        font-size: 0.85rem;
+      }
+      .picked {
+        margin-top: 0.75rem;
+        padding: 0.75rem;
+        border: 1px solid var(--color-border-hairline, rgba(15, 23, 42, 0.08));
+        border-radius: var(--radius-sm, 8px);
+      }
+      .picked p {
+        margin: 0.25rem 0;
+        font-size: 0.85rem;
       }
     `,
   ],
@@ -165,6 +168,18 @@ export default class RequestFormPage {
   readonly assistBusy = signal(false);
   readonly busy = signal(false);
   readonly aiTitleHint = signal('');
+  readonly pickedFiles = signal<File[]>([]);
+  readonly uploadedFiles = signal<
+    Array<{
+      id: string;
+      fileName: string;
+      contentType: string;
+      sizeBytes: number;
+      uploadedByUserId: string;
+      uploadedAt: string;
+      url: string;
+    }>
+  >([]);
 
   readonly step1 = this.fb.nonNullable.group({
     naturalLanguage: [''],
@@ -178,20 +193,16 @@ export default class RequestFormPage {
     assetTag: new FormControl('', {
       asyncValidators: [(c) => this.validateAsset$(c)],
     }),
-    attachments: this.fb.array([this.fb.control('')]),
   });
 
-  get attachments(): FormArray {
-    return this.step2.controls.attachments;
-  }
-
-  addAttachment(): void {
-    this.attachments.push(this.fb.control(''));
-  }
-
-  removeAttachment(i: number): void {
-    this.attachments.removeAt(i);
-    if (!this.attachments.length) this.addAttachment();
+  onPickFiles(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const list = input?.files;
+    if (!list?.length) {
+      this.pickedFiles.set([]);
+      return;
+    }
+    this.pickedFiles.set(Array.from(list));
   }
 
   async assist(): Promise<void> {
@@ -237,16 +248,47 @@ export default class RequestFormPage {
     if (this.step1.invalid || this.step2.invalid) return;
     this.busy.set(true);
     try {
+      const uploadedIds = await this.uploadAttachments();
       const id = await this.facade.createTicket({
         title: this.step1.controls.title.value,
         description: this.step1.controls.description.value,
         priority: this.step2.controls.priority.value,
         category: this.step2.controls.category.value,
-        attachmentIds: [],
+        attachmentIds: uploadedIds,
       });
       await this.router.navigate(['/tickets', id]);
+      this.pickedFiles.set([]);
+      this.uploadedFiles.set([]);
     } finally {
       this.busy.set(false);
     }
+  }
+
+  private async uploadAttachments(): Promise<string[]> {
+    const files = this.pickedFiles();
+    if (!files.length) return [];
+
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append('files', file, file.name);
+    }
+
+    const response = await firstValueFrom(
+      this.http.post<{
+        files: Array<{
+          id: string;
+          fileName: string;
+          contentType: string;
+          sizeBytes: number;
+          uploadedByUserId: string;
+          uploadedAt: string;
+          url: string;
+        }>;
+      }>(`${this.api.restUrl}/upload`, formData),
+    );
+
+    const uploaded = response?.files ?? [];
+    this.uploadedFiles.set(uploaded);
+    return uploaded.map((file) => file.id);
   }
 }

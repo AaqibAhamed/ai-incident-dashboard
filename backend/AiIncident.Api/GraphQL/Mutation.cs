@@ -37,6 +37,24 @@ public sealed class Mutation
             Details = "Ticket opened",
             CreatedAt = now
         });
+
+        if (input.AttachmentIds is { Count: > 0 })
+        {
+            var selectedAssets = await db.MediaAssets
+                .Where(asset => input.AttachmentIds.Contains(asset.Id))
+                .ToListAsync(cancellationToken);
+            foreach (var asset in selectedAssets)
+            {
+                ticket.Attachments.Add(new Attachment
+                {
+                    Id = asset.Id,
+                    TicketId = ticket.Id,
+                    FileName = asset.OriginalFileName,
+                    Url = asset.Url,
+                    UploadedAt = asset.UploadedAt
+                });
+            }
+        }
         db.Tickets.Add(ticket);
         await db.SaveChangesAsync(cancellationToken);
         return ticket;

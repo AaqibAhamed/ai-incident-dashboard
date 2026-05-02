@@ -13,6 +13,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<Comment> Comments => Set<Comment>();
     public DbSet<TicketHistoryEntry> TicketHistoryEntries => Set<TicketHistoryEntry>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
+    public DbSet<MediaAsset> MediaAssets => Set<MediaAsset>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -68,5 +69,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             .HasOne(x => x.Ticket)
             .WithMany(x => x.Attachments)
             .HasForeignKey(x => x.TicketId);
+
+        modelBuilder.Entity<MediaAsset>().HasKey(x => x.Id);
+        modelBuilder.Entity<MediaAsset>()
+            .HasOne(x => x.UploadedByUser)
+            .WithMany()
+            .HasForeignKey(x => x.UploadedByUserId)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }

@@ -79,6 +79,20 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
+    db.Database.ExecuteSqlRaw(
+        """
+        CREATE TABLE IF NOT EXISTS "MediaAssets" (
+            "Id" TEXT NOT NULL CONSTRAINT "PK_MediaAssets" PRIMARY KEY,
+            "OriginalFileName" TEXT NOT NULL,
+            "StoredFileName" TEXT NOT NULL,
+            "ContentType" TEXT NOT NULL,
+            "SizeBytes" INTEGER NOT NULL,
+            "Url" TEXT NOT NULL,
+            "UploadedByUserId" TEXT NOT NULL,
+            "UploadedAt" TEXT NOT NULL,
+            CONSTRAINT "FK_MediaAssets_Users_UploadedByUserId" FOREIGN KEY ("UploadedByUserId") REFERENCES "Users" ("Id") ON DELETE NO ACTION
+        );
+        """);
     AppSeeder.Seed(db);
 }
 

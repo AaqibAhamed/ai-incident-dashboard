@@ -69,3 +69,16 @@ public sealed class Attachment
     public string Url { get; set; } = default!;
     public DateTime UploadedAt { get; set; }
 }
+
+public sealed class MediaAsset
+{
+    public string Id { get; set; } = default!;
+    public string OriginalFileName { get; set; } = default!;
+    public string StoredFileName { get; set; } = default!;
+    public string ContentType { get; set; } = default!;
+    public long SizeBytes { get; set; }
+    public string Url { get; set; } = default!;
+    public string UploadedByUserId { get; set; } = default!;
+    public User? UploadedByUser { get; set; }
+    public DateTime UploadedAt { get; set; }
+}

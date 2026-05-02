@@ -32,9 +32,7 @@ function filterList(filter: Record<string, unknown> | undefined | null): Ticket[
   if (slaBreaching) list = list.filter((t) => t.slaBreached);
   if (search) {
     list = list.filter(
-      (t) =>
-        t.title.toLowerCase().includes(search) ||
-        t.description.toLowerCase().includes(search),
+      (t) => t.title.toLowerCase().includes(search) || t.description.toLowerCase().includes(search),
     );
   }
   return list;
@@ -220,9 +218,26 @@ export const handlers = [
     });
   }),
 
-  http.post('/api/upload', async () =>
-    HttpResponse.json({ id: `file-${Date.now()}`, url: '/api/files/upload.bin' }),
-  ),
+  http.post('/api/upload', async ({ request }) => {
+    const form = await request.formData();
+    const files = form.getAll('files');
+    const uploaded = files
+      .map((value, index) => {
+        if (!(value instanceof File)) return null;
+        const id = `file-${Date.now()}-${index}`;
+        return {
+          id,
+          fileName: value.name,
+          contentType: value.type || 'application/octet-stream',
+          sizeBytes: value.size,
+          uploadedByUserId: 'u-agent',
+          uploadedAt: new Date().toISOString(),
+          url: `/api/files/${id}`,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => !!item);
+    return HttpResponse.json({ files: uploaded });
+  }),
 
   http.post('/api/ai/summary', async () =>
     HttpResponse.json({
