@@ -4,17 +4,17 @@
     <RestoreSuccess Condition=" '$(RestoreSuccess)' == '' ">True</RestoreSuccess>
     <RestoreTool Condition=" '$(RestoreTool)' == '' ">NuGet</RestoreTool>
     <ProjectAssetsFile Condition=" '$(ProjectAssetsFile)' == '' ">$(MSBuildThisFileDirectory)project.assets.json</ProjectAssetsFile>
-    <NuGetPackageRoot Condition=" '$(NuGetPackageRoot)' == '' ">/Users/aaqib-asc/.nuget/packages/</NuGetPackageRoot>
-    <NuGetPackageFolders Condition=" '$(NuGetPackageFolders)' == '' ">/Users/aaqib-asc/.nuget/packages/</NuGetPackageFolders>
+    <NuGetPackageRoot Condition=" '$(NuGetPackageRoot)' == '' ">/var/folders/1b/37tqvxc52jlc6ytjx52p3xh00000gn/T/cursor-sandbox-cache/362ccff25e7e361128d94eba56a18707/nuget</NuGetPackageRoot>
+    <NuGetPackageFolders Condition=" '$(NuGetPackageFolders)' == '' ">/var/folders/1b/37tqvxc52jlc6ytjx52p3xh00000gn/T/cursor-sandbox-cache/362ccff25e7e361128d94eba56a18707/nuget</NuGetPackageFolders>
     <NuGetProjectStyle Condition=" '$(NuGetProjectStyle)' == '' ">PackageReference</NuGetProjectStyle>
-    <NuGetToolVersion Condition=" '$(NuGetToolVersion)' == '' ">7.0.0</NuGetToolVersion>
+    <NuGetToolVersion Condition=" '$(NuGetToolVersion)' == '' ">6.14.0</NuGetToolVersion>
   </PropertyGroup>
   <ItemGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
-    <SourceRoot Include="/Users/aaqib-asc/.nuget/packages/" />
+    <SourceRoot Include="/var/folders/1b/37tqvxc52jlc6ytjx52p3xh00000gn/T/cursor-sandbox-cache/362ccff25e7e361128d94eba56a18707/nuget/" />
   </ItemGroup>
   <ImportGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
-    <Import Project="$(NuGetPackageRoot)microsoft.entityframeworkcore/9.0.4/buildTransitive/net8.0/Microsoft.EntityFrameworkCore.props" Condition="Exists('$(NuGetPackageRoot)microsoft.entityframeworkcore/9.0.4/buildTransitive/net8.0/Microsoft.EntityFrameworkCore.props')" />
-    <Import Project="$(NuGetPackageRoot)hotchocolate.data.entityframework/16.0.0/build/HotChocolate.Data.EntityFramework.props" Condition="Exists('$(NuGetPackageRoot)hotchocolate.data.entityframework/16.0.0/build/HotChocolate.Data.EntityFramework.props')" />
-    <Import Project="$(NuGetPackageRoot)hotchocolate.aspnetcore/16.0.0/build/HotChocolate.AspNetCore.props" Condition="Exists('$(NuGetPackageRoot)hotchocolate.aspnetcore/16.0.0/build/HotChocolate.AspNetCore.props')" />
+    <Import Project="$(NuGetPackageRoot)/microsoft.entityframeworkcore/9.0.4/buildTransitive/net8.0/Microsoft.EntityFrameworkCore.props" Condition="Exists('$(NuGetPackageRoot)/microsoft.entityframeworkcore/9.0.4/buildTransitive/net8.0/Microsoft.EntityFrameworkCore.props')" />
+    <Import Project="$(NuGetPackageRoot)/hotchocolate.data.entityframework/16.0.0/build/HotChocolate.Data.EntityFramework.props" Condition="Exists('$(NuGetPackageRoot)/hotchocolate.data.entityframework/16.0.0/build/HotChocolate.Data.EntityFramework.props')" />
+    <Import Project="$(NuGetPackageRoot)/hotchocolate.aspnetcore/16.0.0/build/HotChocolate.AspNetCore.props" Condition="Exists('$(NuGetPackageRoot)/hotchocolate.aspnetcore/16.0.0/build/HotChocolate.AspNetCore.props')" />
   </ImportGroup>
 </Project>

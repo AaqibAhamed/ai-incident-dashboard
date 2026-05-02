@@ -3641,7 +3641,7 @@
     ]
   },
   "packageFolders": {
-    "/Users/aaqib-asc/.nuget/packages/": {}
+    "/var/folders/1b/37tqvxc52jlc6ytjx52p3xh00000gn/T/cursor-sandbox-cache/362ccff25e7e361128d94eba56a18707/nuget": {}
   },
   "project": {
     "version": "1.0.0",
@@ -3649,7 +3649,7 @@
       "projectUniqueName": "/Users/aaqib-asc/Projects/ai-incident-dashboard/backend/AiIncident.Api/AiIncident.Api.csproj",
       "projectName": "AiIncident.Api",
       "projectPath": "/Users/aaqib-asc/Projects/ai-incident-dashboard/backend/AiIncident.Api/AiIncident.Api.csproj",
-      "packagesPath": "/Users/aaqib-asc/.nuget/packages/",
+      "packagesPath": "/var/folders/1b/37tqvxc52jlc6ytjx52p3xh00000gn/T/cursor-sandbox-cache/362ccff25e7e361128d94eba56a18707/nuget",
       "outputPath": "/Users/aaqib-asc/Projects/ai-incident-dashboard/backend/AiIncident.Api/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [

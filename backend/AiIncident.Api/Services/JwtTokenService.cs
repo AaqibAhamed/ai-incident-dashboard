@@ -16,8 +16,8 @@ public sealed class JwtTokenService(IConfiguration configuration) : IJwtTokenSer
 {
     public string CreateAccessToken(User user)
     {
-        var issuer = configuration["Jwt:Issuer"] ?? "AiIncident.Api";
-        var audience = configuration["Jwt:Audience"] ?? "AiIncident.Frontend";
+        var issuer = configuration["Jwt:Issuer"] ?? "ai-incident-api";
+        var audience = configuration["Jwt:Audience"] ?? "ai-incident-dashboard-spa";
         var signingKey = configuration["Jwt:SigningKey"] ?? "dev-only-signing-key-change-me";
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

@@ -4,6 +4,9 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
+    "dev:api": "dotnet run --project backend/AiIncident.Api --urls http://localhost:5087",
+    "dev:web": "ng serve",
+    "dev:full": "concurrently -n api,web -c blue,green \"npm run dev:api\" \"npm run dev:web\"",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
@@ -51,6 +54,7 @@
     "@testing-library/angular": "^19.2.1",
     "@types/express": "^5.0.1",
     "@types/node": "^20.17.19",
+    "concurrently": "^9.2.1",
     "eslint": "^10.3.0",
     "eslint-config-prettier": "^10.1.8",
     "jsdom": "^28.0.0",

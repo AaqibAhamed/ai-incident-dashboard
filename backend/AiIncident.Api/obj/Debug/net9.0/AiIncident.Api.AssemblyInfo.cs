@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AiIncident.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+17ae6dcfe8b973fe7dd9207f4d96f5001fdda122")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a1fbe875dfef9559490c5bc3c86a7ff04cfc6a02")]
 [assembly: System.Reflection.AssemblyProductAttribute("AiIncident.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AiIncident.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

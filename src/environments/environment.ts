@@ -5,7 +5,7 @@ export const environment = {
   graphqlUrl: '/graphql',
   restUrl: '/api',
   wsUrl: '/graphql',
-  useMocks: true,
+  useMocks: false,
   featureFlags: {
     aiSummary: true,
     aiReply: true,
