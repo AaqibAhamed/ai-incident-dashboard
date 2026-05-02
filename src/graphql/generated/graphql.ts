@@ -39,6 +39,7 @@ export type CreateTicketInput = {
   category: Scalars['String']['input'];
   description: Scalars['String']['input'];
   priority: TicketPriority;
+  tags?: InputMaybe<Array<Scalars['String']['input']>>;
   title: Scalars['String']['input'];
 };
 

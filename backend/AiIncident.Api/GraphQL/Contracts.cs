@@ -34,6 +34,7 @@ public sealed class CreateTicketInput
     public string Description { get; set; } = default!;
     public TicketPriority Priority { get; set; }
     public string Category { get; set; } = default!;
+    public List<string>? Tags { get; set; }
     public List<string>? AttachmentIds { get; set; }
 }
 

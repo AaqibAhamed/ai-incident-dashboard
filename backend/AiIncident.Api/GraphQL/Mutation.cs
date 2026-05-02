@@ -23,7 +23,9 @@ public sealed class Mutation
             Category = input.Category.Trim(),
             RequesterId = "u-requester",
             TeamId = "t1",
-            Tags = ["new"],
+            Tags = input.Tags is { Count: > 0 }
+                ? input.Tags.Where(tag => !string.IsNullOrWhiteSpace(tag)).Select(tag => tag.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                : ["new"],
             SlaDueAt = now.AddHours(48),
             SlaBreached = false,
             CreatedAt = now,

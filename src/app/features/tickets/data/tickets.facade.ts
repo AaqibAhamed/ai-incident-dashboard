@@ -133,12 +133,30 @@ export class TicketsFacade {
 
   async createTicket(input: CreateTicketMutationVariables['input']): Promise<string> {
     const vars: CreateTicketMutationVariables = { input };
-    const res = await firstValueFrom(
-      this.apollo.mutate({
-        mutation: CreateTicketDocument,
-        variables: vars,
-      }),
-    );
-    return res.data?.createTicket.id ?? '';
+    try {
+      const res = await firstValueFrom(
+        this.apollo.mutate({
+          mutation: CreateTicketDocument,
+          variables: vars,
+        }),
+      );
+      return res.data?.createTicket.id ?? '';
+    } catch (error: unknown) {
+      const message = String((error as { message?: string })?.message ?? '');
+      const hasTags = Array.isArray(input.tags) && input.tags.length > 0;
+      // Backward-compatible path when an older backend schema lacks CreateTicketInput.tags.
+      if (hasTags && message.includes('field `tags` does not exist on the type `CreateTicketInput`')) {
+        const retryInput = { ...input };
+        delete (retryInput as { tags?: string[] }).tags;
+        const retry = await firstValueFrom(
+          this.apollo.mutate({
+            mutation: CreateTicketDocument,
+            variables: { input: retryInput },
+          }),
+        );
+        return retry.data?.createTicket.id ?? '';
+      }
+      throw error;
+    }
   }
 }

@@ -129,6 +129,7 @@ input CreateTicketInput {
   description: String!
   priority: TicketPriority!
   category: String!
+  tags: [String!]
   attachmentIds: [ID!]
 }
 

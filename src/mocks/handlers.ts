@@ -3,6 +3,15 @@ import type { Ticket, UserRole } from '../graphql/generated/graphql';
 import { ALL_TICKETS, metricsFor, MOCK_USERS } from './fixtures/seed';
 
 let ticketDb: Ticket[] = JSON.parse(JSON.stringify(ALL_TICKETS)) as Ticket[];
+let uploadDb: Array<{
+  id: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedByUserId: string;
+  uploadedAt: string;
+  url: string;
+}> = [];
 
 const encodeCursor = (i: number): string => btoa(`c:${i}`);
 const decodeCursor = (c: string | null | undefined): number => {
@@ -168,6 +177,8 @@ export const handlers = [
           description: string;
           priority: Ticket['priority'];
           category: string;
+          tags?: string[];
+          attachmentIds?: string[];
         };
         const id = `t-${ticketDb.length + 1}`;
         const nt = JSON.parse(JSON.stringify(ALL_TICKETS[0])) as Ticket;
@@ -176,9 +187,23 @@ export const handlers = [
         nt.description = input.description;
         nt.priority = input.priority;
         nt.category = input.category;
+        nt.tags = input.tags?.length ? input.tags : nt.tags;
         nt.status = 'OPEN';
         nt.createdAt = new Date().toISOString();
         nt.updatedAt = nt.createdAt;
+        nt.attachments = (input.attachmentIds ?? [])
+          .map((assetId) => {
+            const asset = uploadDb.find((a) => a.id === assetId);
+            if (!asset) return null;
+            return {
+              __typename: 'Attachment' as const,
+              id: asset.id,
+              fileName: asset.fileName,
+              url: asset.url,
+              uploadedAt: asset.uploadedAt,
+            };
+          })
+          .filter((value): value is NonNullable<typeof value> => !!value);
         ticketDb = [nt, ...ticketDb];
         return HttpResponse.json({
           data: { createTicket: { id, title: nt.title, status: nt.status, priority: nt.priority } },
@@ -236,6 +261,7 @@ export const handlers = [
         };
       })
       .filter((item): item is NonNullable<typeof item> => !!item);
+    uploadDb = [...uploadDb, ...uploaded];
     return HttpResponse.json({ files: uploaded });
   }),
 

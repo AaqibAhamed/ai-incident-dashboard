@@ -1,5 +1,6 @@
 using AiIncident.Api.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Text.Json;
 
@@ -17,6 +18,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        var stringListComparer = new ValueComparer<List<string>>(
+            (left, right) => left!.SequenceEqual(right!),
+            list => list.Aggregate(0, (hash, item) => HashCode.Combine(hash, item.GetHashCode())),
+            list => list.ToList());
+
         var stringListConverter = new ValueConverter<List<string>, string>(
             value => JsonSerializer.Serialize(value, (JsonSerializerOptions?)null),
             value => JsonSerializer.Deserialize<List<string>>(value, (JsonSerializerOptions?)null) ?? new List<string>());
@@ -27,10 +33,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         modelBuilder.Entity<Ticket>().HasKey(x => x.Id);
         modelBuilder.Entity<Ticket>()
             .Property(x => x.Tags)
-            .HasConversion(stringListConverter);
+            .HasConversion(stringListConverter)
+            .Metadata.SetValueComparer(stringListComparer);
         modelBuilder.Entity<Ticket>()
             .Property(x => x.RelatedTicketIds)
-            .HasConversion(stringListConverter);
+            .HasConversion(stringListConverter)
+            .Metadata.SetValueComparer(stringListComparer);
         modelBuilder.Entity<Ticket>()
             .HasOne(x => x.Assignee)
             .WithMany()

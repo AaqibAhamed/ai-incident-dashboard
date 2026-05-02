@@ -1,15 +1,17 @@
 import { HttpClient } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
-import { AbstractControl, FormBuilder, FormControl, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatStepperModule } from '@angular/material/stepper';
-import { catchError, firstValueFrom, map, Observable, of, switchMap, timer } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import type { TicketPriority } from '../../../../graphql/generated/graphql';
 import { API_CONFIG } from '../../../core/tokens/api-config.token';
 import { FEATURE_FLAGS } from '../../../core/tokens/feature-flags.token';
@@ -20,9 +22,11 @@ import { TicketsFacade } from '../../tickets/data/tickets.facade';
   selector: 'app-request-form',
   standalone: true,
   imports: [
+    FormsModule,
     ReactiveFormsModule,
     MatStepperModule,
     MatCardModule,
+    MatChipsModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -71,16 +75,29 @@ import { TicketsFacade } from '../../tickets/data/tickets.facade';
               <mat-option value="P4">P4</mat-option>
             </mat-select>
           </mat-form-field>
-          <mat-form-field appearance="outline" class="full">
-            <mat-label>Asset tag</mat-label>
-            <input matInput formControlName="assetTag" />
-            @if (step2.controls.assetTag.pending) {
-              <mat-hint>Validating…</mat-hint>
+          <div class="tags">
+            <h3>Tags</h3>
+            <mat-form-field appearance="outline" class="full">
+              <mat-label>Add a tag</mat-label>
+              <input
+                matInput
+                [ngModel]="tagDraft()"
+                (ngModelChange)="tagDraft.set($event)"
+                (keydown.enter)="onAddTagFromInput($event)"
+                [ngModelOptions]="{ standalone: true }"
+              />
+            </mat-form-field>
+            @if (requestTags().length) {
+              <mat-chip-set>
+                @for (tag of requestTags(); track tag) {
+                  <mat-chip removable (removed)="removeTag(tag)">
+                    {{ tag }}
+                    <button matChipRemove type="button" aria-label="Remove tag">x</button>
+                  </mat-chip>
+                }
+              </mat-chip-set>
             }
-            @if (step2.controls.assetTag.errors?.['asset']) {
-              <mat-error>{{ step2.controls.assetTag.errors?.['asset']?.['message'] }}</mat-error>
-            }
-          </mat-form-field>
+          </div>
           <div class="uploads">
             <h3>Attachments</h3>
             <p class="hint">
@@ -89,8 +106,11 @@ import { TicketsFacade } from '../../tickets/data/tickets.facade';
             <input type="file" multiple (change)="onPickFiles($event)" />
             @if (pickedFiles().length) {
               <div class="picked">
-                @for (f of pickedFiles(); track f.name + f.size) {
-                  <p>{{ f.name }} · {{ f.type || 'unknown type' }} · {{ (f.size / 1024).toFixed(1) }} KB</p>
+                @for (f of pickedFiles(); track f.name + f.size + f.lastModified; let i = $index) {
+                  <p>
+                    {{ f.name }} · {{ f.type || 'unknown type' }} · {{ (f.size / 1024).toFixed(1) }} KB
+                    <button mat-button type="button" (click)="removePickedFile(i)">Remove</button>
+                  </p>
                 }
               </div>
             }
@@ -105,12 +125,61 @@ import { TicketsFacade } from '../../tickets/data/tickets.facade';
         <mat-card appearance="outlined">
           <mat-card-title>Review</mat-card-title>
           <mat-card-content>
-            <p>
-              <strong>Title:</strong>
-              {{ step1.controls.title.value.trim() || aiTitleHint() || '(untitled)' }}
-            </p>
-            <p><strong>Priority:</strong> {{ step2.controls.priority.value }}</p>
-            <p><strong>Category:</strong> {{ step2.controls.category.value }}</p>
+            <div class="review-grid">
+              <mat-form-field appearance="outline" class="full">
+                <mat-label>Title</mat-label>
+                <input matInput [formControl]="step1.controls.title" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full">
+                <mat-label>Description</mat-label>
+                <textarea matInput rows="3" [formControl]="step1.controls.description"></textarea>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Priority</mat-label>
+                <mat-select [formControl]="step2.controls.priority">
+                  <mat-option value="P1">P1</mat-option>
+                  <mat-option value="P2">P2</mat-option>
+                  <mat-option value="P3">P3</mat-option>
+                  <mat-option value="P4">P4</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Category</mat-label>
+                <input matInput [formControl]="step2.controls.category" />
+              </mat-form-field>
+            </div>
+
+            <div class="review-section">
+              <h4>Tags</h4>
+              @if (requestTags().length) {
+                <mat-chip-set>
+                  @for (tag of requestTags(); track tag) {
+                    <mat-chip removable (removed)="removeTag(tag)">
+                      {{ tag }}
+                      <button matChipRemove type="button" aria-label="Remove tag">x</button>
+                    </mat-chip>
+                  }
+                </mat-chip-set>
+              } @else {
+                <p class="hint">No tags added.</p>
+              }
+            </div>
+
+            <div class="review-section">
+              <h4>Attachments</h4>
+              @if (pickedFiles().length) {
+                <ul class="files-list">
+                  @for (f of pickedFiles(); track f.name + f.size + f.lastModified; let i = $index) {
+                    <li>
+                      {{ f.name }} · {{ f.type || 'unknown type' }} · {{ (f.size / 1024).toFixed(1) }} KB
+                      <button mat-button type="button" (click)="removePickedFile(i)">Remove</button>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <p class="hint">No files selected.</p>
+              }
+            </div>
           </mat-card-content>
         </mat-card>
         <div class="actions">
@@ -137,6 +206,9 @@ import { TicketsFacade } from '../../tickets/data/tickets.facade';
       .uploads {
         margin-top: 0.75rem;
       }
+      .tags {
+        margin-top: 0.75rem;
+      }
       .hint {
         margin: 0 0 0.5rem;
         opacity: 0.75;
@@ -151,6 +223,24 @@ import { TicketsFacade } from '../../tickets/data/tickets.facade';
       .picked p {
         margin: 0.25rem 0;
         font-size: 0.85rem;
+      }
+      .review-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+      }
+      .review-grid .full {
+        grid-column: 1 / -1;
+      }
+      .review-section {
+        margin-top: 0.75rem;
+      }
+      .files-list {
+        margin: 0.25rem 0 0;
+        padding-left: 1rem;
+      }
+      .files-list li {
+        margin: 0.2rem 0;
       }
     `,
   ],
@@ -168,6 +258,8 @@ export default class RequestFormPage {
   readonly assistBusy = signal(false);
   readonly busy = signal(false);
   readonly aiTitleHint = signal('');
+  readonly requestTags = signal<string[]>([]);
+  readonly tagDraft = signal('');
   readonly pickedFiles = signal<File[]>([]);
   readonly uploadedFiles = signal<
     Array<{
@@ -190,19 +282,46 @@ export default class RequestFormPage {
   readonly step2 = this.fb.nonNullable.group({
     category: ['General', Validators.required],
     priority: this.fb.nonNullable.control<TicketPriority>('P3', Validators.required),
-    assetTag: new FormControl('', {
-      asyncValidators: [(c) => this.validateAsset$(c)],
-    }),
   });
 
   onPickFiles(event: Event): void {
     const input = event.target as HTMLInputElement | null;
     const list = input?.files;
     if (!list?.length) {
-      this.pickedFiles.set([]);
       return;
     }
-    this.pickedFiles.set(Array.from(list));
+    const incoming = Array.from(list);
+    this.pickedFiles.update((current) => {
+      const seen = new Set(current.map((f) => `${f.name}:${f.size}:${f.lastModified}`));
+      const next = [...current];
+      for (const file of incoming) {
+        const key = `${file.name}:${file.size}:${file.lastModified}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          next.push(file);
+        }
+      }
+      return next;
+    });
+    if (input) input.value = '';
+  }
+
+  removePickedFile(index: number): void {
+    this.pickedFiles.update((files) => files.filter((_, i) => i !== index));
+  }
+
+  onAddTagFromInput(event: Event): void {
+    event.preventDefault();
+    const tag = this.tagDraft().trim();
+    if (!tag) return;
+    this.requestTags.update((tags) =>
+      tags.some((t) => t.toLowerCase() === tag.toLowerCase()) ? tags : [...tags, tag],
+    );
+    this.tagDraft.set('');
+  }
+
+  removeTag(tag: string): void {
+    this.requestTags.update((tags) => tags.filter((t) => t !== tag));
   }
 
   async assist(): Promise<void> {
@@ -225,25 +344,6 @@ export default class RequestFormPage {
     }
   }
 
-  private validateAsset$(ctrl: AbstractControl): Observable<ValidationErrors | null> {
-    return timer(250).pipe(
-      switchMap(() => {
-        const v = (ctrl.value as string)?.trim();
-        if (!v) return of(null);
-        return this.http
-          .get<{ valid: boolean; message?: string }>(`${this.api.restUrl}/validate-asset`, {
-            params: { assetTag: v },
-          })
-          .pipe(
-            map((res) =>
-              res.valid ? null : { asset: { message: res.message ?? 'Invalid asset' } },
-            ),
-            catchError(() => of({ asset: { message: 'Validation failed' } })),
-          );
-      }),
-    );
-  }
-
   async submit(): Promise<void> {
     if (this.step1.invalid || this.step2.invalid) return;
     this.busy.set(true);
@@ -254,11 +354,23 @@ export default class RequestFormPage {
         description: this.step1.controls.description.value,
         priority: this.step2.controls.priority.value,
         category: this.step2.controls.category.value,
+        tags: this.requestTags(),
         attachmentIds: uploadedIds,
       });
+      if (!id) {
+        throw new Error('Ticket creation returned empty id');
+      }
       await this.router.navigate(['/tickets', id]);
       this.pickedFiles.set([]);
       this.uploadedFiles.set([]);
+      this.requestTags.set([]);
+      this.tagDraft.set('');
+    } catch {
+      this.snack.open(
+        'Failed to submit service request. If backend was just updated, restart API and try again.',
+        'OK',
+        { duration: 6000 },
+      );
     } finally {
       this.busy.set(false);
     }

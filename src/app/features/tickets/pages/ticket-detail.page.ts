@@ -52,6 +52,29 @@ import { TicketsFacade } from '../data/tickets.facade';
             </div>
             <mat-card-content class="detail-content">
               <p class="description">{{ t.description }}</p>
+              @if (t.attachments.length) {
+                <section class="attachments">
+                  <h3>Attachments</h3>
+                  <div class="attachment-chips">
+                    @for (a of t.attachments; track a.id) {
+                      <a class="attachment-chip" [href]="a.url" target="_blank" rel="noopener noreferrer">
+                        <span class="icon" aria-hidden="true">{{ attachmentIcon(a.fileName) }}</span>
+                        <span class="name">{{ a.fileName }}</span>
+                        <span class="action">Download</span>
+                      </a>
+                    }
+                  </div>
+                  <div class="image-gallery">
+                    @for (a of t.attachments; track a.id) {
+                      @if (isImageFile(a.fileName)) {
+                        <a [href]="a.url" target="_blank" rel="noopener noreferrer">
+                          <img [src]="a.url" [alt]="a.fileName" loading="lazy" />
+                        </a>
+                      }
+                    }
+                  </div>
+                </section>
+              }
               <mat-divider />
               <h3>Assign</h3>
               <mat-form-field appearance="outline">
@@ -200,6 +223,52 @@ import { TicketsFacade } from '../data/tickets.facade';
         margin: 0 0 var(--space-5, 1.25rem);
         line-height: 1.6;
       }
+      .attachments {
+        margin: 0 0 var(--space-5, 1.25rem);
+      }
+      .attachment-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+      }
+      .attachment-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        text-decoration: none;
+        color: inherit;
+        border: 1px solid var(--color-border-hairline, rgba(15, 23, 42, 0.08));
+        border-radius: 999px;
+        padding: 0.3rem 0.65rem;
+        background: var(--color-surface, #fff);
+      }
+      .attachment-chip .icon {
+        font-size: 0.95rem;
+      }
+      .attachment-chip .name {
+        max-width: 220px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .attachment-chip .action {
+        font-size: 0.75rem;
+        opacity: 0.7;
+      }
+      .image-gallery {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 0.65rem;
+      }
+      .image-gallery img {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 1px solid var(--color-border-hairline, rgba(15, 23, 42, 0.08));
+        display: block;
+      }
       .grid {
         display: grid;
         grid-template-columns: 1fr 320px;
@@ -320,6 +389,22 @@ export default class TicketDetailPage {
     this.sumAbort?.abort();
   }
 
+  isImageFile(fileName: string): boolean {
+    const ext = this.getExt(fileName);
+    return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(ext);
+  }
+
+  attachmentIcon(fileName: string): string {
+    const ext = this.getExt(fileName);
+    if (this.isImageFile(fileName)) return '🖼️';
+    if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) return '🎬';
+    if (['pdf'].includes(ext)) return '📄';
+    if (['doc', 'docx', 'txt', 'rtf'].includes(ext)) return '📝';
+    if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
+    if (['zip', 'rar', '7z'].includes(ext)) return '🗜️';
+    return '📎';
+  }
+
   // private async reload(): Promise<void> {
   //   const t = this.ticketLive();
   //   if (!t) return;
@@ -331,5 +416,11 @@ export default class TicketDetailPage {
     if (!t) return;
     const fresh = await this.facade.getTicket(t.id);
     this.ticketLive.set(fresh);
+  }
+
+  private getExt(fileName: string): string {
+    const idx = fileName.lastIndexOf('.');
+    if (idx < 0) return '';
+    return fileName.slice(idx + 1).toLowerCase();
   }
 }
