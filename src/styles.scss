@@ -1,0 +1,16 @@
+@import '@angular/material/prebuilt-themes/azure-blue.css';
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  font-family: 'DM Sans', system-ui, sans-serif;
+}
+
+html {
+  color-scheme: light dark;
+}
+
+.app-dark-theme {
+  color-scheme: dark;
+}

@@ -1,0 +1,138 @@
+query Tickets($filter: TicketFilterInput, $after: String, $first: Int) {
+  tickets(filter: $filter, after: $after, first: $first) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        status
+        priority
+        slaBreached
+        slaDueAt
+        tags
+        updatedAt
+        assignee {
+          id
+          name
+        }
+        team {
+          id
+          name
+        }
+      }
+    }
+    pageInfo {
+      endCursor
+      hasNextPage
+    }
+  }
+}
+
+query Ticket($id: ID!) {
+  ticket(id: $id) {
+    id
+    title
+    description
+    status
+    priority
+    assigneeId
+    category
+    slaBreached
+    slaDueAt
+    tags
+    createdAt
+    updatedAt
+    relatedTicketIds
+    assignee {
+      id
+      name
+      email
+    }
+    requester {
+      id
+      name
+      email
+    }
+    team {
+      id
+      name
+    }
+    comments {
+      id
+      body
+      createdAt
+      author {
+        id
+        name
+      }
+    }
+    history {
+      id
+      action
+      details
+      createdAt
+    }
+    attachments {
+      id
+      fileName
+      url
+      uploadedAt
+    }
+  }
+}
+
+query DashboardMetrics($range: String!) {
+  dashboardMetrics(range: $range) {
+    openCount
+    resolvedCount
+    slaBreaches
+    agingOver7d
+    byTeam {
+      teamId
+      teamName
+      openTickets
+    }
+  }
+}
+
+mutation CreateTicket($input: CreateTicketInput!) {
+  createTicket(input: $input) {
+    id
+    title
+    status
+    priority
+  }
+}
+
+mutation UpdateTicket($id: ID!, $input: UpdateTicketInput!) {
+  updateTicket(id: $id, input: $input) {
+    id
+    title
+    status
+    priority
+    updatedAt
+  }
+}
+
+mutation AssignTicket($id: ID!, $assigneeId: ID!) {
+  assignTicket(id: $id, assigneeId: $assigneeId) {
+    id
+    assigneeId
+    assignee {
+      id
+      name
+    }
+  }
+}
+
+mutation AddComment($ticketId: ID!, $body: String!) {
+  addComment(ticketId: $ticketId, body: $body) {
+    id
+    body
+    createdAt
+    author {
+      id
+      name
+    }
+  }
+}

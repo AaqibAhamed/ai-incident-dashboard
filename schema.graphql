@@ -1,0 +1,151 @@
+"""Mirror of planned .NET Hot Chocolate schema — front-end contract."""
+scalar DateTime
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  P1
+  P2
+  P3
+  P4
+}
+
+enum UserRole {
+  AGENT
+  MANAGER
+  REQUESTER
+}
+
+type PageInfo {
+  endCursor: String
+  hasNextPage: Boolean!
+}
+
+type TicketEdge {
+  cursor: String!
+  node: Ticket!
+}
+
+type TicketConnection {
+  edges: [TicketEdge!]!
+  pageInfo: PageInfo!
+}
+
+type User {
+  id: ID!
+  name: String!
+  email: String!
+  role: UserRole!
+}
+
+type Team {
+  id: ID!
+  name: String!
+}
+
+type Comment {
+  id: ID!
+  ticketId: ID!
+  authorId: ID!
+  author: User
+  body: String!
+  createdAt: DateTime!
+}
+
+type TicketHistoryEntry {
+  id: ID!
+  createdAt: DateTime!
+  action: String!
+  details: String
+}
+
+type Attachment {
+  id: ID!
+  fileName: String!
+  url: String!
+  uploadedAt: DateTime!
+}
+
+type Ticket {
+  id: ID!
+  title: String!
+  description: String!
+  status: TicketStatus!
+  priority: TicketPriority!
+  assigneeId: ID
+  assignee: User
+  requesterId: ID!
+  requester: User
+  teamId: ID
+  team: Team
+  category: String
+  tags: [String!]!
+  slaDueAt: DateTime
+  slaBreached: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  comments: [Comment!]!
+  history: [TicketHistoryEntry!]!
+  relatedTicketIds: [ID!]!
+  attachments: [Attachment!]!
+}
+
+input TicketFilterInput {
+  status: [TicketStatus!]
+  priority: [TicketPriority!]
+  assigneeId: ID
+  tags: [String!]
+  slaBreaching: Boolean
+  search: String
+}
+
+type TeamWorkload {
+  teamId: ID!
+  teamName: String!
+  openTickets: Int!
+}
+
+type DashboardMetrics {
+  openCount: Int!
+  resolvedCount: Int!
+  slaBreaches: Int!
+  agingOver7d: Int!
+  byTeam: [TeamWorkload!]!
+}
+
+type Query {
+  tickets(filter: TicketFilterInput, after: String, first: Int): TicketConnection!
+  ticket(id: ID!): Ticket
+  dashboardMetrics(range: String!): DashboardMetrics!
+}
+
+input CreateTicketInput {
+  title: String!
+  description: String!
+  priority: TicketPriority!
+  category: String!
+  attachmentIds: [ID!]
+}
+
+input UpdateTicketInput {
+  status: TicketStatus
+  priority: TicketPriority
+  title: String
+  description: String
+}
+
+type Mutation {
+  createTicket(input: CreateTicketInput!): Ticket!
+  updateTicket(id: ID!, input: UpdateTicketInput!): Ticket!
+  assignTicket(id: ID!, assigneeId: ID!): Ticket!
+  addComment(ticketId: ID!, body: String!): Comment!
+}
+
+type Subscription {
+  ticketUpdated(id: ID!): Ticket!
+}
