@@ -33,6 +33,7 @@ import { routes } from './app.routes';
 /** Shared between browser and server — no animations, no hydration */
 export const appBaseConfig: ApplicationConfig = {
   providers: [
+    provideClientHydration(),
     provideZonelessChangeDetection(),
     provideRouter(
       routes,
