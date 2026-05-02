@@ -7,6 +7,9 @@ import {
   type AssignTicketMutationVariables,
   CreateTicketDocument,
   type CreateTicketMutationVariables,
+  TicketDocument,
+  type TicketQuery,
+  type TicketQueryVariables,
   TicketsDocument,
   type TicketsQuery,
   type TicketsQueryVariables,
@@ -114,6 +117,18 @@ export class TicketsFacade {
         variables: { ticketId, body },
       }),
     );
+  }
+
+  async getTicket(id: string): Promise<TicketQuery['ticket'] | null> {
+    const vars: TicketQueryVariables = { id };
+    const res = await firstValueFrom(
+      this.apollo.query({
+        query: TicketDocument,
+        variables: vars,
+        fetchPolicy: 'network-only',
+      }),
+    );
+    return res.data?.ticket ?? null;
   }
 
   async createTicket(input: CreateTicketMutationVariables['input']): Promise<string> {

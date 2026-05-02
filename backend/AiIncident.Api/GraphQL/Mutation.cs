@@ -43,7 +43,7 @@ public sealed class Mutation
     }
 
     public async Task<Ticket> UpdateTicket(
-        string id,
+        [ID] string id,
         UpdateTicketInput input,
         [Service] AppDbContext db,
         CancellationToken cancellationToken)
@@ -78,8 +78,8 @@ public sealed class Mutation
     }
 
     public async Task<Ticket> AssignTicket(
-        string id,
-        string assigneeId,
+        [ID] string id,
+        [ID] string assigneeId,
         [Service] AppDbContext db,
         CancellationToken cancellationToken)
     {
@@ -106,7 +106,7 @@ public sealed class Mutation
     }
 
     public async Task<Comment> AddComment(
-        string ticketId,
+        [ID] string ticketId,
         string body,
         [Service] AppDbContext db,
         CancellationToken cancellationToken)
@@ -130,7 +130,7 @@ public sealed class Mutation
     }
 
     public async Task<bool> DeleteTicket(
-        string id,
+        [ID] string id,
         [Service] AppDbContext db,
         CancellationToken cancellationToken)
     {

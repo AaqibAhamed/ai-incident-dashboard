@@ -1,4 +1,4 @@
-import { Component, inject, input, signal } from '@angular/core';
+import { Component, effect, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -32,10 +32,10 @@ import { TicketsFacade } from '../data/tickets.facade';
     TimeAgoPipe,
   ],
   template: `
-    @if (!ticket()) {
+    @if (!ticketLive()) {
       <mat-card><mat-card-content>Ticket not found.</mat-card-content></mat-card>
     } @else {
-      @let t = ticket()!;
+      @let t = ticketLive()!;
       <div class="grid">
         <div class="main">
           <mat-card appearance="outlined" class="surface-card detail-main">
@@ -238,6 +238,7 @@ import { TicketsFacade } from '../data/tickets.facade';
 })
 export default class TicketDetailPage {
   readonly ticket = input<TicketQuery['ticket'] | null>(null);
+  readonly ticketLive = signal<TicketQuery['ticket'] | null>(null);
 
   private readonly facade = inject(TicketsFacade);
   private readonly router = inject(Router);
@@ -254,23 +255,32 @@ export default class TicketDetailPage {
 
   readonly aiBusy = signal(false);
 
+  constructor() {
+    effect(
+      () => {
+        this.ticketLive.set(this.ticket());
+      },
+      { allowSignalWrites: true },
+    );
+  }
+
   async onAssign(ev: MatSelectChange): Promise<void> {
-    const t = this.ticket();
+    const t = this.ticketLive();
     const id = ev.value as string | null;
     if (!t) return;
     if (id) {
       await this.facade.assignTicket(t.id, id);
     }
-    await this.reload();
+    await this.refreshTicket();
   }
 
   async post(): Promise<void> {
-    const t = this.ticket();
+    const t = this.ticketLive();
     const body = this.commentDraft.trim();
     if (!t || !body) return;
     await this.facade.addComment(t.id, body);
     this.commentDraft = '';
-    await this.reload();
+    await this.refreshTicket();
   }
 
   async useAiDraft(): Promise<void> {
@@ -288,7 +298,7 @@ export default class TicketDetailPage {
   }
 
   async summarize(): Promise<void> {
-    const t = this.ticket();
+    const t = this.ticketLive();
     if (!t) return;
     this.sumAbort?.abort();
     this.sumAbort = new AbortController();
@@ -310,9 +320,16 @@ export default class TicketDetailPage {
     this.sumAbort?.abort();
   }
 
-  private async reload(): Promise<void> {
-    const t = this.ticket();
+  // private async reload(): Promise<void> {
+  //   const t = this.ticketLive();
+  //   if (!t) return;
+  //   await this.router.navigateByUrl(`/tickets/${t.id}`, { replaceUrl: true });
+  // }
+
+  private async refreshTicket(): Promise<void> {
+    const t = this.ticketLive();
     if (!t) return;
-    await this.router.navigateByUrl(`/tickets/${t.id}`, { replaceUrl: true });
+    const fresh = await this.facade.getTicket(t.id);
+    this.ticketLive.set(fresh);
   }
 }

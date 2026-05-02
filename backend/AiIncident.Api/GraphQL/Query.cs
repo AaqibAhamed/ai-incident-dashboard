@@ -37,7 +37,7 @@ public sealed class Query
         return new TicketConnection(edges, new PageInfo(endCursor, hasNextPage));
     }
 
-    public Task<Ticket?> Ticket(string id, [Service] AppDbContext db, CancellationToken cancellationToken) =>
+    public Task<Ticket?> Ticket([ID] string id, [Service] AppDbContext db, CancellationToken cancellationToken) =>
         db.Tickets
             .AsNoTracking()
             .Include(x => x.Assignee)
