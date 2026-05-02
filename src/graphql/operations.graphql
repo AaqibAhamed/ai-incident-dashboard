@@ -108,6 +108,9 @@ mutation UpdateTicket($id: ID!, $input: UpdateTicketInput!) {
   updateTicket(id: $id, input: $input) {
     id
     title
+    description
+    category
+    tags
     status
     priority
     updatedAt
@@ -135,4 +138,8 @@ mutation AddComment($ticketId: ID!, $body: String!) {
       name
     }
   }
+}
+
+mutation DeleteTicket($id: ID!) {
+  deleteTicket(id: $id)
 }

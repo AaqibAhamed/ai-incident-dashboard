@@ -56,7 +56,10 @@ import { TicketsFacade } from '../data/tickets.facade';
               <h3>Assign</h3>
               <mat-form-field appearance="outline">
                 <mat-label>Assignee</mat-label>
-                <mat-select [value]="t.assigneeId ?? 'u-agent'" (selectionChange)="onAssign($event)">
+                <mat-select
+                  [value]="t.assigneeId ?? 'u-agent'"
+                  (selectionChange)="onAssign($event)"
+                >
                   <mat-option value="u-agent">Alex Agent</mat-option>
                   <mat-option value="u-manager">Morgan Manager</mat-option>
                 </mat-select>
@@ -78,7 +81,12 @@ import { TicketsFacade } from '../data/tickets.facade';
               <div class="row">
                 <button mat-flat-button color="primary" type="button" (click)="post()">Post</button>
                 @if (flags.aiReply) {
-                  <button mat-stroked-button type="button" (click)="useAiDraft()" [disabled]="aiBusy()">
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    (click)="useAiDraft()"
+                    [disabled]="aiBusy()"
+                  >
                     Use AI draft
                   </button>
                 }
@@ -109,7 +117,9 @@ import { TicketsFacade } from '../data/tickets.facade';
               <mat-card-content>
                 <ul>
                   @for (rid of t.relatedTicketIds; track rid) {
-                    <li><a [routerLink]="['/tickets', rid]">{{ rid }}</a></li>
+                    <li>
+                      <a [routerLink]="['/tickets', rid]">{{ rid }}</a>
+                    </li>
                   }
                 </ul>
               </mat-card-content>
@@ -132,7 +142,12 @@ import { TicketsFacade } from '../data/tickets.facade';
                   <p><strong>Next:</strong> {{ s.nextSteps }}</p>
                 }
                 <div class="row">
-                  <button mat-stroked-button type="button" (click)="summarize()" [disabled]="sumBusy()">
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    (click)="summarize()"
+                    [disabled]="sumBusy()"
+                  >
                     Summarize ticket
                   </button>
                   @if (sumBusy()) {

@@ -1,4 +1,4 @@
-"""Mirror of planned .NET Hot Chocolate schema — front-end contract."""
+"""Mirror of planned .NET Hot Chocolate schema ï¿½ front-end contract."""
 scalar DateTime
 
 enum TicketStatus {
@@ -137,6 +137,8 @@ input UpdateTicketInput {
   priority: TicketPriority
   title: String
   description: String
+  category: String
+  tags: [String!]
 }
 
 type Mutation {
@@ -144,6 +146,7 @@ type Mutation {
   updateTicket(id: ID!, input: UpdateTicketInput!): Ticket!
   assignTicket(id: ID!, assigneeId: ID!): Ticket!
   addComment(ticketId: ID!, body: String!): Comment!
+  deleteTicket(id: ID!): Boolean!
 }
 
 type Subscription {

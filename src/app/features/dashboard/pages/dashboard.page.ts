@@ -1,10 +1,14 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectChange, MatSelectModule } from '@angular/material/select';
 import { FEATURE_FLAGS } from '../../../core/tokens/feature-flags.token';
+import type { TicketPriority, TicketStatus } from '../../../../graphql/generated/graphql';
+import { TimeAgoPipe } from '../../../shared/pipes/time-ago.pipe';
 import { AiService } from '../../ai/ai.service';
 import { DashboardFacade } from '../data/dashboard.facade';
 
@@ -12,9 +16,12 @@ import { DashboardFacade } from '../data/dashboard.facade';
   selector: 'app-dashboard',
   standalone: true,
   imports: [
+    FormsModule,
+    TimeAgoPipe,
     MatCardModule,
     MatButtonModule,
     MatFormFieldModule,
+    MatInputModule,
     MatSelectModule,
     MatProgressSpinnerModule,
   ],
@@ -124,6 +131,119 @@ import { DashboardFacade } from '../data/dashboard.facade';
           <p class="muted">AI summary loads on scroll…</p>
         }
       }
+
+      <mat-card class="section surface-card manager" appearance="outlined">
+        <mat-card-header>
+          <mat-card-title>Tickets manager</mat-card-title>
+          <mat-card-subtitle>View, update, comment, tag, and delete tickets from dashboard</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          @if (facade.ticketError()) {
+            <p class="soft-error">{{ facade.ticketError() }}</p>
+          }
+          <div class="manager-grid">
+            <div class="tickets-list">
+              @for (t of facade.tickets(); track t.id) {
+                <div class="ticket-item" [class.active]="selectedId() === t.id">
+                  <button class="ticket-open" type="button" (click)="openTicket(t.id)">
+                    <span class="ticket-title">{{ t.title }}</span>
+                    <span class="ticket-meta">{{ t.status }} · {{ t.priority }}</span>
+                  </button>
+                  <button mat-button type="button" class="ticket-delete" (click)="deleteTicket(t.id)">
+                    Delete
+                  </button>
+                </div>
+              }
+            </div>
+
+            <div class="ticket-editor">
+              @if (facade.ticketLoading()) {
+                <div class="state"><mat-spinner diameter="30" /></div>
+              } @else if (!selectedId()) {
+                <p class="muted">Select a ticket to edit details, comments, tags, and status.</p>
+              } @else {
+                <div class="editor-grid">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Title</mat-label>
+                    <input matInput [(ngModel)]="editTitle" [ngModelOptions]="{ standalone: true }" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>Category</mat-label>
+                    <input matInput [(ngModel)]="editCategory" [ngModelOptions]="{ standalone: true }" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="full">
+                    <mat-label>Description</mat-label>
+                    <textarea
+                      matInput
+                      rows="4"
+                      [(ngModel)]="editDescription"
+                      [ngModelOptions]="{ standalone: true }"
+                    ></textarea>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>Status</mat-label>
+                    <mat-select
+                      [(ngModel)]="editStatus"
+                      [ngModelOptions]="{ standalone: true }"
+                    >
+                      @for (s of statuses; track s) {
+                        <mat-option [value]="s">{{ s }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>Priority</mat-label>
+                    <mat-select
+                      [(ngModel)]="editPriority"
+                      [ngModelOptions]="{ standalone: true }"
+                    >
+                      @for (p of priorities; track p) {
+                        <mat-option [value]="p">{{ p }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="full">
+                    <mat-label>Tags (comma-separated)</mat-label>
+                    <input matInput [(ngModel)]="editTags" [ngModelOptions]="{ standalone: true }" />
+                  </mat-form-field>
+                </div>
+                <div class="row-actions">
+                  <button mat-stroked-button type="button" (click)="saveTicket()">
+                    Save ticket
+                  </button>
+                  <button mat-button type="button" (click)="deleteTicket(selectedId()!)">
+                    Delete ticket
+                  </button>
+                </div>
+
+                <div class="comments">
+                  <h3>Comments</h3>
+                  @if (facade.selectedTicket()?.comments?.length) {
+                    @for (c of facade.selectedTicket()?.comments ?? []; track c.id) {
+                      <p class="comment-item">
+                        <strong>{{ c.author?.name ?? 'User' }}</strong> · {{ c.createdAt | timeAgo }}<br />
+                        {{ c.body }}
+                      </p>
+                    }
+                  } @else {
+                    <p class="muted">No comments yet.</p>
+                  }
+                  <mat-form-field appearance="outline" class="full">
+                    <mat-label>Add comment</mat-label>
+                    <textarea
+                      matInput
+                      rows="3"
+                      [(ngModel)]="commentDraft"
+                      [ngModelOptions]="{ standalone: true }"
+                    ></textarea>
+                  </mat-form-field>
+                  <button mat-stroked-button type="button" (click)="addComment()">Add comment</button>
+                </div>
+              }
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
     }
   `,
   styles: [
@@ -271,6 +391,74 @@ import { DashboardFacade } from '../data/dashboard.facade';
         font-size: 0.9rem;
         margin: var(--space-4) 0;
       }
+      .manager mat-card-content {
+        padding: var(--space-4) var(--space-6) var(--space-6) !important;
+      }
+      .manager-grid {
+        display: grid;
+        grid-template-columns: minmax(240px, 320px) 1fr;
+        gap: var(--space-6);
+      }
+      @media (max-width: 980px) {
+        .manager-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .tickets-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+        max-height: 520px;
+        overflow: auto;
+        padding-right: var(--space-2);
+      }
+      .ticket-item {
+        border: 1px solid var(--color-border-hairline);
+        border-radius: var(--radius-sm);
+        padding: var(--space-2);
+        display: flex;
+        gap: var(--space-2);
+        align-items: center;
+        justify-content: space-between;
+        background: var(--color-surface);
+      }
+      .ticket-item.active {
+        border-color: var(--color-border-soft);
+      }
+      .ticket-open {
+        flex: 1;
+        background: transparent;
+        border: 0;
+        text-align: left;
+        cursor: pointer;
+        padding: var(--space-1);
+      }
+      .ticket-title {
+        display: block;
+        font-weight: 600;
+      }
+      .ticket-meta {
+        display: block;
+        color: var(--color-text-muted);
+        font-size: 0.8rem;
+      }
+      .editor-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-3);
+      }
+      .editor-grid .full {
+        grid-column: 1 / -1;
+      }
+      .comments {
+        margin-top: var(--space-5);
+        padding-top: var(--space-4);
+        border-top: 1px solid var(--color-border-hairline);
+      }
+      .comment-item {
+        margin: 0 0 var(--space-3);
+        color: var(--color-text-muted);
+      }
     `,
   ],
 })
@@ -283,6 +471,17 @@ export default class DashboardPage implements OnInit {
   readonly aiLoading = signal(false);
   readonly aiText = signal<string | null>(null);
   readonly aiErr = signal<string | null>(null);
+  readonly selectedId = signal<string | null>(null);
+  readonly statuses: TicketStatus[] = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
+  readonly priorities: TicketPriority[] = ['P1', 'P2', 'P3', 'P4'];
+
+  editTitle = '';
+  editDescription = '';
+  editCategory = '';
+  editTags = '';
+  editStatus: TicketStatus = 'OPEN';
+  editPriority: TicketPriority = 'P3';
+  commentDraft = '';
   private aiAbort?: AbortController;
 
   ngOnInit(): void {
@@ -306,6 +505,71 @@ export default class DashboardPage implements OnInit {
 
   reload(): void {
     void this.facade.load(this.range());
+  }
+
+  async openTicket(id: string): Promise<void> {
+    this.selectedId.set(id);
+    await this.facade.loadTicket(id);
+    this.syncEditFields();
+  }
+
+  async saveTicket(): Promise<void> {
+    const id = this.selectedId();
+    if (!id) return;
+    await this.facade.updateTicket(id, {
+      title: this.editTitle.trim(),
+      description: this.editDescription.trim(),
+      category: this.editCategory.trim(),
+      tags: this.editTags
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean),
+      status: this.editStatus,
+      priority: this.editPriority,
+    });
+    await this.facade.load(this.range());
+    await this.facade.loadTicket(id);
+    this.syncEditFields();
+  }
+
+  async addComment(): Promise<void> {
+    const id = this.selectedId();
+    const body = this.commentDraft.trim();
+    if (!id || !body) return;
+    await this.facade.addComment(id, body);
+    this.commentDraft = '';
+  }
+
+  async deleteTicket(id: string): Promise<void> {
+    if (!confirm('Delete this ticket? This cannot be undone.')) return;
+    const deleted = await this.facade.deleteTicket(id);
+    if (!deleted) return;
+    if (this.selectedId() === id) {
+      this.selectedId.set(null);
+      this.resetEditFields();
+    }
+    await this.facade.load(this.range());
+  }
+
+  private syncEditFields(): void {
+    const ticket = this.facade.selectedTicket();
+    if (!ticket) return;
+    this.editTitle = ticket.title;
+    this.editDescription = ticket.description;
+    this.editCategory = ticket.category ?? '';
+    this.editTags = ticket.tags.join(', ');
+    this.editStatus = ticket.status;
+    this.editPriority = ticket.priority;
+  }
+
+  private resetEditFields(): void {
+    this.editTitle = '';
+    this.editDescription = '';
+    this.editCategory = '';
+    this.editTags = '';
+    this.editStatus = 'OPEN';
+    this.editPriority = 'P3';
+    this.commentDraft = '';
   }
 
   async runAi(): Promise<void> {

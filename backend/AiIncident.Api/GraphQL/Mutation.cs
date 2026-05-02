@@ -55,6 +55,8 @@ public sealed class Mutation
         if (input.Priority is not null) ticket.Priority = input.Priority.Value;
         if (!string.IsNullOrWhiteSpace(input.Title)) ticket.Title = input.Title.Trim();
         if (!string.IsNullOrWhiteSpace(input.Description)) ticket.Description = input.Description.Trim();
+        if (!string.IsNullOrWhiteSpace(input.Category)) ticket.Category = input.Category.Trim();
+        if (input.Tags is not null) ticket.Tags = input.Tags.Where(tag => !string.IsNullOrWhiteSpace(tag)).Select(tag => tag.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         ticket.UpdatedAt = DateTime.UtcNow;
         db.TicketHistoryEntries.Add(new TicketHistoryEntry
         {
@@ -65,7 +67,14 @@ public sealed class Mutation
             CreatedAt = DateTime.UtcNow
         });
         await db.SaveChangesAsync(cancellationToken);
-        return ticket;
+        return await db.Tickets
+            .Include(x => x.Assignee)
+            .Include(x => x.Requester)
+            .Include(x => x.Team)
+            .Include(x => x.Comments).ThenInclude(x => x.Author)
+            .Include(x => x.History)
+            .Include(x => x.Attachments)
+            .FirstAsync(x => x.Id == id, cancellationToken);
     }
 
     public async Task<Ticket> AssignTicket(
@@ -118,6 +127,29 @@ public sealed class Mutation
         await db.SaveChangesAsync(cancellationToken);
 
         return await db.Comments.Include(x => x.Author).FirstAsync(x => x.Id == comment.Id, cancellationToken);
+    }
+
+    public async Task<bool> DeleteTicket(
+        string id,
+        [Service] AppDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var ticket = await db.Tickets
+            .Include(x => x.Comments)
+            .Include(x => x.History)
+            .Include(x => x.Attachments)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (ticket is null)
+        {
+            return false;
+        }
+
+        db.Comments.RemoveRange(ticket.Comments);
+        db.TicketHistoryEntries.RemoveRange(ticket.History);
+        db.Attachments.RemoveRange(ticket.Attachments);
+        db.Tickets.Remove(ticket);
+        await db.SaveChangesAsync(cancellationToken);
+        return true;
     }
 
     private static async Task<string> NextTicketId(AppDbContext db, CancellationToken cancellationToken)

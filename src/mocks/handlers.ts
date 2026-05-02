@@ -101,18 +101,29 @@ export const handlers = [
         if (input['priority']) t.priority = input['priority'] as Ticket['priority'];
         if (typeof input['title'] === 'string') t.title = input['title'];
         if (typeof input['description'] === 'string') t.description = input['description'];
+        if (typeof input['category'] === 'string') t.category = input['category'];
+        if (Array.isArray(input['tags'])) t.tags = input['tags'] as string[];
         t.updatedAt = new Date().toISOString();
         return HttpResponse.json({
           data: {
             updateTicket: {
               id: t.id,
               title: t.title,
+              description: t.description,
+              category: t.category,
+              tags: t.tags,
               status: t.status,
               priority: t.priority,
               updatedAt: t.updatedAt,
             },
           },
         });
+      }
+      case 'DeleteTicket': {
+        const id = v['id'] as string;
+        const before = ticketDb.length;
+        ticketDb = ticketDb.filter((x) => x.id !== id);
+        return HttpResponse.json({ data: { deleteTicket: before !== ticketDb.length } });
       }
       case 'AssignTicket': {
         const id = v['id'] as string;

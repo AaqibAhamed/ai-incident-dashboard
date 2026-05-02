@@ -42,17 +42,17 @@ npm start
 
 ## Scripts
 
-| Script        | Purpose                                      |
-| ------------- | -------------------------------------------- |
-| `npm start`   | Dev server (`ng serve`, MSW on)              |
-| `npm run dev:api` | .NET API only (`http://localhost:5087`) |
-| `npm run dev:web` | Angular dev server only (`ng serve`) |
-| `npm run dev:full` | API + Angular together (set `useMocks: false` for real backend) |
-| `npm run build` | Production bundle (`environment.production` replaces `environment.ts`) |
-| `npm test` / `npm run test:ci` | Vitest via `ng test`              |
-| `npm run codegen` | Regenerate `src/graphql/generated/graphql.ts` from `schema.graphql` |
-| `npm run lint` | ESLint (`ng lint`)                          |
-| `npm run format` | Prettier write                             |
+| Script                         | Purpose                                                                |
+| ------------------------------ | ---------------------------------------------------------------------- |
+| `npm start`                    | Dev server (`ng serve`, MSW on)                                        |
+| `npm run dev:api`              | .NET API only (`http://localhost:5087`)                                |
+| `npm run dev:web`              | Angular dev server only (`ng serve`)                                   |
+| `npm run dev:full`             | API + Angular together (set `useMocks: false` for real backend)        |
+| `npm run build`                | Production bundle (`environment.production` replaces `environment.ts`) |
+| `npm test` / `npm run test:ci` | Vitest via `ng test`                                                   |
+| `npm run codegen`              | Regenerate `src/graphql/generated/graphql.ts` from `schema.graphql`    |
+| `npm run lint`                 | ESLint (`ng lint`)                                                     |
+| `npm run format`               | Prettier write                                                         |
 
 ## Architecture
 
@@ -112,6 +112,11 @@ After `npm run codegen`, if the generator re-emits **duplicate input types** at 
 - **Build**: `@angular/build` (esbuild application builder).
 - **Tests**: Vitest + `ApolloTestingModule` for GraphQL integration-style facade tests.
 
-## License
+## Run
 
-Private / demo — adjust for your org.
+cd ~/Projects/ai-incident-dashboard
+nvm use 24
+npm install
+dotnet build AiIncidentDashboard.sln
+
+npm run dev:full
