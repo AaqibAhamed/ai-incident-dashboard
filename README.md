@@ -13,6 +13,25 @@ npm start
 
 Open `http://localhost:4200`, sign in with any email/password, pick **Agent / Manager / Requester** (MSW returns JWT + user for that role).
 
+## Run with local .NET backend
+
+1. Start the API host:
+
+```bash
+dotnet build AiIncidentDashboard.sln
+dotnet run --project backend/AiIncident.Api --urls http://localhost:5087
+```
+
+2. Switch Angular to real APIs:
+   - In `src/environments/environment.development.ts`, set `useMocks: false`.
+   - Keep `graphqlUrl: '/graphql'` and `restUrl: '/api'`; `proxy.conf.json` forwards both paths to `http://localhost:5087`.
+
+3. Start Angular as normal:
+
+```bash
+npm start
+```
+
 ## Scripts
 
 | Script        | Purpose                                      |
