@@ -5,11 +5,15 @@
 /tmp
 /out-tsc
 /bazel-out
+/bin
+/obj
 
 # Node
 /node_modules
 npm-debug.log
 yarn-error.log
+pnpm-debug.log*
+lerna-debug.log*
 
 # IDEs and editors
 .idea/
@@ -28,9 +32,14 @@ yarn-error.log
 !.vscode/extensions.json
 !.vscode/mcp.json
 .history/*
+*.swp
+*.swo
+*~
+*.tmp
 
 # Miscellaneous
 /.angular/cache
+.angular/
 .sass-cache/
 /connect.lock
 /coverage
@@ -38,6 +47,27 @@ yarn-error.log
 testem.log
 /typings
 __screenshots__/
+.cache/
+
+# .NET and backend runtime
+**/bin/
+**/obj/
+*.user
+*.rsuser
+*.suo
+*.nupkg
+*.snupkg
+TestResults/
+backend/data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.pdb
+
+# Logs
+*.log
 
 # System files
 .DS_Store
