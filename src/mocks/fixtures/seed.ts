@@ -7,7 +7,22 @@ import type {
   UserRole,
 } from '../../graphql/generated/graphql';
 
+export const MOCK_TENANT = {
+  __typename: 'Tenant' as const,
+  id: 'tenant-demo',
+  name: 'Demo Corporation',
+  slug: 'demo',
+  status: 'Active' as const,
+};
+
 export const MOCK_USERS: User[] = [
+  {
+    __typename: 'User',
+    id: 'u-tenant-admin',
+    name: 'Taylor Tenant Admin',
+    email: 'admin@example.com',
+    role: 'TENANT_ADMIN' as UserRole,
+  },
   {
     __typename: 'User',
     id: 'u-agent',

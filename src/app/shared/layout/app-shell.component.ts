@@ -26,18 +26,31 @@ import { ThemeService } from '../../core/theme/theme.service';
       <mat-sidenav mode="side" opened class="nav">
         <div class="brand">Incident Hub</div>
         <mat-nav-list>
+          @if (canPlatform()) {
+            <a mat-list-item routerLink="/platform/tenants" routerLinkActive="active">Platform tenants</a>
+          }
+          @if (canTenantAdmin()) {
+            <a mat-list-item routerLink="/tenant/users" routerLinkActive="active">Tenant users</a>
+          }
           @if (canDash()) {
             <a mat-list-item routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
           }
           @if (canTickets()) {
             <a mat-list-item routerLink="/tickets" routerLinkActive="active">Tickets</a>
           }
-          <a mat-list-item routerLink="/request" routerLinkActive="active">New request</a>
+          @if (showRequest()) {
+            <a mat-list-item routerLink="/request" routerLinkActive="active">New request</a>
+          }
         </mat-nav-list>
       </mat-sidenav>
       <mat-sidenav-content class="content">
         <mat-toolbar class="topbar">
-          <span class="topbar-title">AI‑assisted Incident &amp; Service Request</span>
+          <span class="topbar-title">
+            AI‑assisted Incident &amp; Service Request
+            @if (auth.tenant(); as t) {
+              <span class="tenant-chip">{{ t.name }}</span>
+            }
+          </span>
           <span class="spacer"></span>
           <button mat-icon-button type="button" (click)="theme.toggle()" [attr.aria-label]="'Toggle theme'">
             <mat-icon>{{ theme.dark() ? 'light_mode' : 'dark_mode' }}</mat-icon>
@@ -96,6 +109,18 @@ import { ThemeService } from '../../core/theme/theme.service';
         font-weight: 500;
         letter-spacing: -0.01em;
         color: rgba(15, 23, 42, 0.75);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+      .tenant-chip {
+        font-size: 0.8rem;
+        font-weight: 500;
+        padding: 0.15rem 0.5rem;
+        border-radius: var(--radius-sm, 8px);
+        background: var(--color-border-soft, rgba(15, 23, 42, 0.06));
+        color: rgba(15, 23, 42, 0.65);
       }
       :host-context(.app-dark-theme) .topbar-title {
         color: rgba(255, 255, 255, 0.72);
@@ -122,11 +147,17 @@ export default class AppShellComponent {
   readonly theme = inject(ThemeService);
   private readonly router = inject(Router);
 
-  readonly canDash = computed(() => this.auth.user()?.role === 'MANAGER');
+  readonly canPlatform = computed(() => this.auth.user()?.role === 'SUPER_ADMIN');
+  readonly canTenantAdmin = computed(() => this.auth.user()?.role === 'TENANT_ADMIN');
+  readonly canDash = computed(() => {
+    const r = this.auth.user()?.role;
+    return r === 'MANAGER' || r === 'TENANT_ADMIN';
+  });
   readonly canTickets = computed(() => {
     const r = this.auth.user()?.role;
-    return r === 'MANAGER' || r === 'AGENT';
+    return r === 'MANAGER' || r === 'AGENT' || r === 'TENANT_ADMIN';
   });
+  readonly showRequest = computed(() => this.auth.user()?.role !== 'SUPER_ADMIN');
 
   logout(): void {
     this.auth.logout();

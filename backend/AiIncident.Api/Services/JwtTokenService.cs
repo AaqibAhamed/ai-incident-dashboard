@@ -8,26 +8,37 @@ namespace AiIncident.Api.Services;
 
 public interface IJwtTokenService
 {
-    string CreateAccessToken(User user);
+    string CreateAccessToken(User user, string? tenantSlug);
     string CreateRefreshToken();
 }
 
 public sealed class JwtTokenService(IConfiguration configuration) : IJwtTokenService
 {
-    public string CreateAccessToken(User user)
+    public string CreateAccessToken(User user, string? tenantSlug)
     {
         var issuer = configuration["Jwt:Issuer"] ?? "ai-incident-api";
         var audience = configuration["Jwt:Audience"] ?? "ai-incident-dashboard-spa";
         var signingKey = configuration["Jwt:SigningKey"] ?? "dev-only-signing-key-change-me";
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-        var claims = new[]
+
+        var claims = new List<Claim>
         {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id),
-            new Claim(JwtRegisteredClaimNames.Email, user.Email),
-            new Claim(ClaimTypes.Role, user.Role.ToString()),
-            new Claim("name", user.Name)
+            new(JwtRegisteredClaimNames.Sub, user.Id),
+            new(JwtRegisteredClaimNames.Email, user.Email),
+            new(ClaimTypes.Role, user.Role.ToString()),
+            new("name", user.Name)
         };
+
+        if (!string.IsNullOrEmpty(user.TenantId))
+        {
+            claims.Add(new Claim("tenant_id", user.TenantId));
+        }
+
+        if (!string.IsNullOrEmpty(tenantSlug))
+        {
+            claims.Add(new Claim("tenant_slug", tenantSlug));
+        }
 
         var token = new JwtSecurityToken(
             issuer: issuer,
@@ -46,14 +57,4 @@ public interface IRefreshTokenStore
 {
     void Save(string refreshToken, string userId);
     bool TryGetUser(string refreshToken, out string userId);
-}
-
-public sealed class InMemoryRefreshTokenStore : IRefreshTokenStore
-{
-    private readonly Dictionary<string, string> _tokens = new(StringComparer.Ordinal);
-
-    public void Save(string refreshToken, string userId) => _tokens[refreshToken] = userId;
-
-    public bool TryGetUser(string refreshToken, out string userId) =>
-        _tokens.TryGetValue(refreshToken, out userId!);
 }

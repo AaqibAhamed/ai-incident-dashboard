@@ -1,6 +1,9 @@
 import { http, HttpResponse } from 'msw';
-import type { Ticket, UserRole } from '../graphql/generated/graphql';
-import { ALL_TICKETS, metricsFor, MOCK_USERS } from './fixtures/seed';
+import type { Ticket, User, UserRole } from '../graphql/generated/graphql';
+import { ALL_TICKETS, metricsFor, MOCK_TENANT, MOCK_USERS } from './fixtures/seed';
+
+let mockSessionUser: User = MOCK_USERS.find((u) => u.role === 'MANAGER') ?? MOCK_USERS[0]!;
+let mockSessionTenant: typeof MOCK_TENANT | null = MOCK_TENANT;
 
 let ticketDb: Ticket[] = JSON.parse(JSON.stringify(ALL_TICKETS)) as Ticket[];
 let uploadDb: Array<{
@@ -72,6 +75,16 @@ export const handlers = [
     const v = body.variables ?? {};
 
     switch (op) {
+      case 'Me': {
+        return HttpResponse.json({
+          data: {
+            me: {
+              user: mockSessionUser,
+              tenant: mockSessionTenant,
+            },
+          },
+        });
+      }
       case 'Tickets': {
         const filtered = filterList(v['filter'] as Record<string, unknown> | null);
         const after = v['after'] as string | null | undefined;
@@ -218,18 +231,26 @@ export const handlers = [
   }),
 
   http.post('/api/auth/login', async ({ request }) => {
-    const body = (await request.json()) as { email: string; password: string; role: UserRole };
-    const template = MOCK_USERS.find((u) => u.role === body.role) ?? MOCK_USERS[0]!;
-    const user = {
-      id: template.id,
-      name: template.name,
-      email: body.email || template.email,
-      role: body.role,
-    };
+    const body = (await request.json()) as { email: string; password: string };
+    const email = (body.email ?? '').trim().toLowerCase();
+    if (email === 'super@ai-platform.internal') {
+      mockSessionUser = {
+        __typename: 'User',
+        id: 'u-super-admin',
+        name: 'Platform Super Admin',
+        email,
+        role: 'SUPER_ADMIN' as UserRole,
+      };
+      mockSessionTenant = null;
+    } else {
+      mockSessionUser = MOCK_USERS.find((u) => u.email === email) ?? MOCK_USERS[2]!;
+      mockSessionTenant = MOCK_TENANT;
+    }
     return HttpResponse.json({
-      accessToken: `mock.${body.role.toLowerCase()}.token`,
+      accessToken: `mock.${mockSessionUser.role.toLowerCase()}.token`,
       refreshToken: 'mock-refresh',
-      user,
+      user: mockSessionUser,
+      tenant: mockSessionTenant,
     });
   }),
 
@@ -239,9 +260,44 @@ export const handlers = [
     return HttpResponse.json({
       accessToken: 'mock.refreshed',
       refreshToken: 'mock-refresh',
-      user: MOCK_USERS[0],
+      user: mockSessionUser,
+      tenant: mockSessionTenant,
     });
   }),
+
+  http.get('/api/platform/tenants', () =>
+    HttpResponse.json([
+      {
+        id: MOCK_TENANT.id,
+        name: MOCK_TENANT.name,
+        slug: MOCK_TENANT.slug,
+        status: MOCK_TENANT.status,
+        createdAt: new Date().toISOString(),
+      },
+    ]),
+  ),
+
+  http.post('/api/platform/tenants', async () => HttpResponse.json({ ok: true })),
+
+  http.patch('/api/platform/tenants/:tenantId/suspend', async () => HttpResponse.json({ ok: true })),
+
+  http.patch('/api/platform/tenants/:tenantId/activate', async () => HttpResponse.json({ ok: true })),
+
+  http.get('/api/tenant/users', () =>
+    HttpResponse.json(
+      MOCK_USERS.map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        isActive: true,
+      })),
+    ),
+  ),
+
+  http.post('/api/tenant/users', async () => HttpResponse.json({ ok: true })),
+
+  http.patch('/api/tenant/users/:userId', async () => HttpResponse.json({ ok: true })),
 
   http.post('/api/upload', async ({ request }) => {
     const form = await request.formData();

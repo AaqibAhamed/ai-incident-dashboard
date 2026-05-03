@@ -1,4 +1,5 @@
 using AiIncident.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AiIncident.Api.Controllers;
@@ -20,6 +21,7 @@ public sealed class HealthReportRequest
 
 [ApiController]
 [Route("api/ai")]
+[Authorize]
 public sealed class AiController(IAiAssistant assistant) : ControllerBase
 {
     [HttpPost("summary")]

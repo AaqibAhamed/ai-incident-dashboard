@@ -1,5 +1,6 @@
 using AiIncident.Api.Data;
 using AiIncident.Api.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.IdentityModel.Tokens.Jwt;
@@ -9,6 +10,7 @@ namespace AiIncident.Api.Controllers;
 
 [ApiController]
 [Route("api")]
+[Authorize]
 public sealed class UtilityController(
     AppDbContext db,
     IWebHostEnvironment environment) : ControllerBase
@@ -16,6 +18,12 @@ public sealed class UtilityController(
     [HttpGet("validate-asset")]
     public ActionResult<object> ValidateAsset([FromQuery] string assetTag)
     {
+        var tenantId = User.FindFirstValue("tenant_id");
+        if (string.IsNullOrEmpty(tenantId))
+        {
+            return Forbid();
+        }
+
         if (assetTag.Trim().Length < 4)
         {
             return BadRequest(new { valid = false, message = "Asset tag too short" });
@@ -27,6 +35,12 @@ public sealed class UtilityController(
     [HttpPost("upload")]
     public async Task<ActionResult<object>> Upload([FromForm] List<IFormFile> files, CancellationToken cancellationToken)
     {
+        var tenantId = User.FindFirstValue("tenant_id");
+        if (string.IsNullOrEmpty(tenantId))
+        {
+            return Forbid();
+        }
+
         if (files.Count == 0)
         {
             return BadRequest(new { message = "No files uploaded." });
@@ -37,12 +51,18 @@ public sealed class UtilityController(
 
         var uploaderId = User.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub)
-            ?? User.FindFirstValue("sub")
-            ?? "u-agent";
-        var uploaderExists = await db.Users.AnyAsync(u => u.Id == uploaderId, cancellationToken);
-        if (!uploaderExists)
+            ?? "";
+        if (string.IsNullOrEmpty(uploaderId))
         {
-            uploaderId = "u-agent";
+            return Unauthorized();
+        }
+
+        var uploaderOk = await db.Users.AnyAsync(
+            u => u.Id == uploaderId && u.TenantId == tenantId,
+            cancellationToken);
+        if (!uploaderOk)
+        {
+            return Unauthorized();
         }
 
         var uploaded = new List<object>(files.Count);
@@ -63,6 +83,7 @@ public sealed class UtilityController(
             var asset = new MediaAsset
             {
                 Id = id,
+                TenantId = tenantId,
                 OriginalFileName = file.FileName,
                 StoredFileName = storedName,
                 ContentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType,
@@ -91,6 +112,12 @@ public sealed class UtilityController(
     [HttpGet("files/{storedName}")]
     public async Task<IActionResult> GetFile(string storedName, CancellationToken cancellationToken)
     {
+        var tenantId = User.FindFirstValue("tenant_id");
+        if (string.IsNullOrEmpty(tenantId))
+        {
+            return Forbid();
+        }
+
         if (string.IsNullOrWhiteSpace(storedName))
         {
             return NotFound();
@@ -103,8 +130,15 @@ public sealed class UtilityController(
             return NotFound();
         }
 
-        var asset = await db.MediaAssets.FirstOrDefaultAsync(a => a.StoredFileName == storedName, cancellationToken);
-        var contentType = asset?.ContentType ?? "application/octet-stream";
+        var asset = await db.MediaAssets.FirstOrDefaultAsync(
+            a => a.StoredFileName == storedName && a.TenantId == tenantId,
+            cancellationToken);
+        if (asset is null)
+        {
+            return NotFound();
+        }
+
+        var contentType = asset.ContentType ?? "application/octet-stream";
         return PhysicalFile(fullPath, contentType);
     }
 }

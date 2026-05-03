@@ -47,3 +47,17 @@ public sealed class UpdateTicketInput
     public string? Category { get; set; }
     public List<string>? Tags { get; set; }
 }
+
+public sealed class MePayload
+{
+    public User User { get; set; } = default!;
+    public TenantGql? Tenant { get; set; }
+}
+
+public sealed class TenantGql
+{
+    public string Id { get; set; } = default!;
+    public string Name { get; set; } = default!;
+    public string Slug { get; set; } = default!;
+    public TenantStatus Status { get; set; }
+}
