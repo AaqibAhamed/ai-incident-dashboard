@@ -15,7 +15,7 @@ Open `http://localhost:4200`, sign in with **email + password** (tenant is infer
 
 **Multi-tenant + SQLite:** The API uses a shared database with a `TenantId` column on tenant-owned rows. If you are upgrading from an older single-tenant database, **delete** `backend/data/app.db` once so `EnsureCreated` can recreate the schema, then restart the API.
 
-**Seeded .NET accounts (password `demo`):** `super@ai-platform.internal` (super admin), `admin@example.com` (tenant admin), `alex@example.com`, `morgan@example.com`, `riley@example.com` (mapped via domain `example.com`).
+**Seeded .NET accounts (password `demo`):** `super@ai-platform.internal` (super admin), `admin@example.com` (tenant admin), `alex@example.com`(AGENT), `morgan@example.com`(MANAGER), `riley@example.com`(REQUESTER) (mapped via domain `example.com`).
 
 ## Run with local .NET backend
 
@@ -46,18 +46,18 @@ npm start
 
 ## Scripts
 
-| Script                         | Purpose                                                                |
-| ------------------------------ | ---------------------------------------------------------------------- |
-| `npm start`                    | Dev server (`ng serve`, MSW on)                                        |
-| `npm run dev:api`              | .NET API only (`http://localhost:5087`)                                |
-| `npm run dev:web`              | Angular dev server only (`ng serve`)                                   |
-| `npm run dev:full`             | API + Angular together (set `useMocks: false` for real backend)        |
-| `npm run build`                | Production bundle (`environment.production` replaces `environment.ts`) |
-| `npm test` / `npm run test:ci` | Vitest via `ng test`                                                   |
-| `npm run codegen`              | Regenerate `src/graphql/generated/graphql.ts` (use **Node 20+**)       |
-| `dotnet test backend/AiIncident.Api.Tests/AiIncident.Api.Tests.csproj` | Tenant isolation unit tests (xUnit) |
-| `npm run lint`                 | ESLint (`ng lint`)                                                     |
-| `npm run format`               | Prettier write                                                         |
+| Script                                                                 | Purpose                                                                |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `npm start`                                                            | Dev server (`ng serve`, MSW on)                                        |
+| `npm run dev:api`                                                      | .NET API only (`http://localhost:5087`)                                |
+| `npm run dev:web`                                                      | Angular dev server only (`ng serve`)                                   |
+| `npm run dev:full`                                                     | API + Angular together (set `useMocks: false` for real backend)        |
+| `npm run build`                                                        | Production bundle (`environment.production` replaces `environment.ts`) |
+| `npm test` / `npm run test:ci`                                         | Vitest via `ng test`                                                   |
+| `npm run codegen`                                                      | Regenerate `src/graphql/generated/graphql.ts` (use **Node 20+**)       |
+| `dotnet test backend/AiIncident.Api.Tests/AiIncident.Api.Tests.csproj` | Tenant isolation unit tests (xUnit)                                    |
+| `npm run lint`                                                         | ESLint (`ng lint`)                                                     |
+| `npm run format`                                                       | Prettier write                                                         |
 
 ## Architecture
 

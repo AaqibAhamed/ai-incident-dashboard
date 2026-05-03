@@ -68,6 +68,11 @@ public sealed class AuthController(
             }
 
             tenant = map.Tenant;
+            if (tenant.Status == TenantStatus.Deleted)
+            {
+                return Unauthorized(new { message = "This organization account has been deleted." });
+            }
+
             if (tenant.Status == TenantStatus.Suspended)
             {
                 return Unauthorized(new { message = "This organization account is suspended." });
@@ -89,6 +94,15 @@ public sealed class AuthController(
         {
             tenant = await db.Tenants.AsNoTracking()
                 .FirstOrDefaultAsync(t => t.Id == authenticated.TenantId, cancellationToken);
+            if (tenant?.Status == TenantStatus.Deleted)
+            {
+                return Unauthorized(new { message = "This organization account has been deleted." });
+            }
+
+            if (tenant?.Status == TenantStatus.Suspended)
+            {
+                return Unauthorized(new { message = "This organization account is suspended." });
+            }
         }
 
         return Ok(CreateAuthResponse(authenticated, tenant));
@@ -114,6 +128,11 @@ public sealed class AuthController(
         {
             tenant = await db.Tenants.AsNoTracking()
                 .FirstOrDefaultAsync(t => t.Id == user.TenantId, cancellationToken);
+            if (tenant?.Status == TenantStatus.Deleted)
+            {
+                return Unauthorized(new { message = "This organization account has been deleted." });
+            }
+
             if (tenant?.Status == TenantStatus.Suspended)
             {
                 return Unauthorized(new { message = "This organization account is suspended." });

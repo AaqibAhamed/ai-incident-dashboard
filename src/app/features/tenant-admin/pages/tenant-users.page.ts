@@ -77,7 +77,14 @@ interface UserRow {
               <li>
                 {{ u.name }} · {{ u.email }} · {{ u.role }}
                 @if (u.isActive) {
-                  <button mat-button type="button" (click)="deactivate(u.id)">Deactivate</button>
+                  <button
+                    [disabled]="u.role == 'TENANT_ADMIN'"
+                    mat-button
+                    type="button"
+                    (click)="deactivate(u.id)"
+                  >
+                    Deactivate
+                  </button>
                 } @else {
                   <span class="inactive">Inactive</span>
                 }
@@ -144,7 +151,9 @@ export default class TenantUsersPage {
   async reload(): Promise<void> {
     this.loading.set(true);
     try {
-      const rows = await firstValueFrom(this.http.get<UserRow[]>(`${this.api.restUrl}/tenant/users`));
+      const rows = await firstValueFrom(
+        this.http.get<UserRow[]>(`${this.api.restUrl}/tenant/users`),
+      );
       this.users.set(rows ?? []);
     } catch {
       this.snack.open('Failed to load users', 'OK', { duration: 4000 });
@@ -157,7 +166,9 @@ export default class TenantUsersPage {
     if (this.form.invalid) return;
     this.busy.set(true);
     try {
-      await firstValueFrom(this.http.post(`${this.api.restUrl}/tenant/users`, this.form.getRawValue()));
+      await firstValueFrom(
+        this.http.post(`${this.api.restUrl}/tenant/users`, this.form.getRawValue()),
+      );
       this.snack.open('User created', 'OK', { duration: 3000 });
       this.form.patchValue({ name: '', email: '', password: '' });
       await this.reload();
@@ -170,7 +181,9 @@ export default class TenantUsersPage {
 
   async deactivate(id: string): Promise<void> {
     try {
-      await firstValueFrom(this.http.patch(`${this.api.restUrl}/tenant/users/${id}`, { isActive: false }));
+      await firstValueFrom(
+        this.http.patch(`${this.api.restUrl}/tenant/users/${id}`, { isActive: false }),
+      );
       await this.reload();
     } catch {
       this.snack.open('Update failed', 'OK', { duration: 4000 });

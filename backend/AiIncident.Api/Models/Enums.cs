@@ -27,6 +27,7 @@ public enum UserRole
 
 public enum TenantStatus
 {
-    Active,
-    Suspended
+    Active = 0,
+    Deleted = 1,
+    Suspended = 2
 }

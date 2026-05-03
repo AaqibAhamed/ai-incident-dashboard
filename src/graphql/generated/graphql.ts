@@ -159,6 +159,7 @@ export type Tenant = {
 
 export type TenantStatus =
   | 'Active'
+  | 'Deleted'
   | 'Suspended';
 
 export type Ticket = {

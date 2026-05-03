@@ -65,6 +65,27 @@ function listNode(t: Ticket) {
   };
 }
 
+const platformTenantListRow = {
+  id: MOCK_TENANT.id,
+  name: MOCK_TENANT.name,
+  slug: MOCK_TENANT.slug,
+  status: MOCK_TENANT.status,
+  createdAt: new Date().toISOString(),
+  primaryDomain: 'example.com',
+  tenantAdmin: {
+    id: 'u-tenant-admin',
+    name: 'Taylor Tenant Admin',
+    email: 'admin@example.com',
+    isActive: true,
+  },
+};
+
+const platformTenantDetail = {
+  ...platformTenantListRow,
+  domains: [{ domain: 'example.com', isPrimary: true }],
+  tenantAdmin: platformTenantListRow.tenantAdmin,
+};
+
 export const handlers = [
   http.post('/graphql', async ({ request }) => {
     const body = (await request.json()) as {
@@ -266,22 +287,40 @@ export const handlers = [
   }),
 
   http.get('/api/platform/tenants', () =>
-    HttpResponse.json([
-      {
-        id: MOCK_TENANT.id,
-        name: MOCK_TENANT.name,
-        slug: MOCK_TENANT.slug,
-        status: MOCK_TENANT.status,
-        createdAt: new Date().toISOString(),
-      },
-    ]),
+    HttpResponse.json({
+      live: [platformTenantListRow],
+      deleted: [] as typeof platformTenantListRow[],
+    }),
   ),
 
-  http.post('/api/platform/tenants', async () => HttpResponse.json({ ok: true })),
+  http.get('/api/platform/tenants/:tenantId', ({ params }) => {
+    if (params['tenantId'] !== MOCK_TENANT.id) {
+      return HttpResponse.json({ message: 'Not found' }, { status: 404 });
+    }
+    return HttpResponse.json(platformTenantDetail);
+  }),
+
+  http.post('/api/platform/tenants', async () =>
+    HttpResponse.json({
+      tenant: { id: 'tenant-mock', name: 'Mock', slug: 'mock' },
+      primaryDomain: 'mock.example',
+      tenantAdmin: { id: 'u-mock', name: 'Mock Admin', email: 'admin@mock.example' },
+    }),
+  ),
+
+  http.patch('/api/platform/tenants/:tenantId', async () => HttpResponse.json({ ok: true })),
+
+  http.patch('/api/platform/tenants/:tenantId/tenant-admins/:userId', async () =>
+    HttpResponse.json({ ok: true }),
+  ),
+
+  http.patch('/api/platform/tenants/:tenantId/delete', async () => HttpResponse.json({ ok: true })),
 
   http.patch('/api/platform/tenants/:tenantId/suspend', async () => HttpResponse.json({ ok: true })),
 
-  http.patch('/api/platform/tenants/:tenantId/activate', async () => HttpResponse.json({ ok: true })),
+  http.patch('/api/platform/tenants/:tenantId/resume', async () => HttpResponse.json({ ok: true })),
+
+  http.patch('/api/platform/tenants/:tenantId/restore', async () => HttpResponse.json({ ok: true })),
 
   http.get('/api/tenant/users', () =>
     HttpResponse.json(
