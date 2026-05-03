@@ -28,6 +28,7 @@ import { loadingInterceptor } from './core/http/interceptors/loading.interceptor
 import { API_CONFIG } from './core/tokens/api-config.token';
 import { FEATURE_FLAGS } from './core/tokens/feature-flags.token';
 import { environment } from '../environments/environment';
+import { TranslateService } from './core/i18n/translate.service';
 import { routes } from './app.routes';
 
 /** Shared between browser and server — no animations, no hydration */
@@ -62,8 +63,10 @@ export const appBaseConfig: ApplicationConfig = {
       useFactory: () => {
         const auth = inject(AuthStore);
         const platformId = inject(PLATFORM_ID);
+        const translate = inject(TranslateService);
         return () => {
           if (isPlatformBrowser(platformId)) {
+            translate.restoreLocaleFromStorage();
             auth.restoreFromStorage();
           }
         };

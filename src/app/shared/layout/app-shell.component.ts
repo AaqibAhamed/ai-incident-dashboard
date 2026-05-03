@@ -6,6 +6,8 @@ import { MatListModule } from '@angular/material/list';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { AuthStore } from '../../core/auth/auth.store';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { TranslateService } from '../../core/i18n/translate.service';
 import { ThemeService } from '../../core/theme/theme.service';
 
 @Component({
@@ -20,42 +22,78 @@ import { ThemeService } from '../../core/theme/theme.service';
     MatListModule,
     MatIconModule,
     MatButtonModule,
+    TranslatePipe,
   ],
   template: `
     <mat-sidenav-container class="shell">
       <mat-sidenav mode="side" opened class="nav">
-        <div class="brand">Incident Hub</div>
+        <div class="brand">{{ 'shell.brand' | translate }}</div>
         <mat-nav-list>
           @if (canPlatform()) {
-            <a mat-list-item routerLink="/platform/tenants" routerLinkActive="active">Platform tenants</a>
+            <a mat-list-item routerLink="/platform/tenants" routerLinkActive="active">{{
+              'shell.nav.platformTenants' | translate
+            }}</a>
           }
           @if (canTenantAdmin()) {
-            <a mat-list-item routerLink="/tenant/users" routerLinkActive="active">Tenant users</a>
+            <a mat-list-item routerLink="/tenant/users" routerLinkActive="active">{{
+              'shell.nav.tenantUsers' | translate
+            }}</a>
           }
           @if (canDash()) {
-            <a mat-list-item routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+            <a mat-list-item routerLink="/dashboard" routerLinkActive="active">{{
+              'shell.nav.dashboard' | translate
+            }}</a>
           }
           @if (canTickets()) {
-            <a mat-list-item routerLink="/tickets" routerLinkActive="active">Tickets</a>
+            <a mat-list-item routerLink="/tickets" routerLinkActive="active">{{
+              'shell.nav.tickets' | translate
+            }}</a>
           }
           @if (showRequest()) {
-            <a mat-list-item routerLink="/request" routerLinkActive="active">New request</a>
+            <a mat-list-item routerLink="/request" routerLinkActive="active">{{
+              'shell.nav.newRequest' | translate
+            }}</a>
           }
         </mat-nav-list>
       </mat-sidenav>
       <mat-sidenav-content class="content">
         <mat-toolbar class="topbar">
           <span class="topbar-title">
-            AI‑assisted Incident &amp; Service Request
+            {{ 'shell.topbarTitle' | translate }}
             @if (auth.tenant(); as t) {
               <span class="tenant-chip">{{ t.name }}</span>
             }
           </span>
           <span class="spacer"></span>
-          <button mat-icon-button type="button" (click)="theme.toggle()" [attr.aria-label]="'Toggle theme'">
+          <span class="locale-switch" role="group" [attr.aria-label]="'shell.localeAria' | translate">
+            <button
+              mat-button
+              type="button"
+              class="locale-btn"
+              [class.locale-btn-active]="locale() === 'en'"
+              (click)="i18n.setLocale('en')"
+            >
+              {{ 'shell.localeEn' | translate }}
+            </button>
+            <button
+              mat-button
+              type="button"
+              class="locale-btn"
+              [class.locale-btn-active]="locale() === 'sv'"
+              (click)="i18n.setLocale('sv')"
+            >
+              {{ 'shell.localeSv' | translate }}
+            </button>
+          </span>
+          <button
+            mat-icon-button
+            type="button"
+            (click)="theme.toggle()"
+            [attr.aria-label]="'shell.toggleTheme' | translate"
+          >
             <mat-icon>{{ theme.dark() ? 'light_mode' : 'dark_mode' }}</mat-icon>
           </button>
-          <button mat-button type="button" (click)="logout()">Logout</button>
+          <button mat-button type="button" (click)="logout()">{{ 'shell.logout' | translate }}</button>
         </mat-toolbar>
         <main class="main">
           <div class="page">
@@ -128,6 +166,25 @@ import { ThemeService } from '../../core/theme/theme.service';
       .spacer {
         flex: 1;
       }
+      .locale-switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 0;
+        margin-right: var(--space-2, 8px);
+      }
+      .locale-btn {
+        min-width: 2.75rem;
+        padding: 0 0.5rem;
+        line-height: 2.25rem;
+        font-weight: 500;
+        opacity: 0.65;
+      }
+      .locale-btn-active {
+        opacity: 1;
+        font-weight: 600;
+        background: var(--color-border-soft, rgba(15, 23, 42, 0.06));
+        border-radius: var(--radius-sm, 8px);
+      }
       .main {
         flex: 1;
         padding: var(--space-6) 0 var(--space-10);
@@ -145,6 +202,8 @@ import { ThemeService } from '../../core/theme/theme.service';
 export default class AppShellComponent {
   readonly auth = inject(AuthStore);
   readonly theme = inject(ThemeService);
+  readonly i18n = inject(TranslateService);
+  readonly locale = this.i18n.locale;
   private readonly router = inject(Router);
 
   readonly canPlatform = computed(() => this.auth.user()?.role === 'SUPER_ADMIN');

@@ -9,6 +9,8 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import type { UserRole } from '../../../../graphql/generated/graphql';
+import { TranslateService } from '../../../core/i18n/translate.service';
+import { TranslatePipe } from '../../../core/i18n/translate.pipe';
 import { API_CONFIG } from '../../../core/tokens/api-config.token';
 
 interface UserRow {
@@ -37,36 +39,33 @@ const emailLocalPartPattern = /^(?:[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9])$/i;
     MatInputModule,
     MatSelectModule,
     MatSnackBarModule,
+    TranslatePipe,
   ],
   template: `
-    <h1>Tenant users</h1>
+    <h1>{{ 'tenantUsers.title' | translate }}</h1>
     <p class="sub">
-      New users sign in with your organization’s primary email domain. Enter only the part before
+      {{ 'tenantUsers.introPart1' | translate }}
       <span class="nowrap">&#64;</span>
-      — the domain is fixed.
+      {{ 'tenantUsers.introPart2' | translate }}
     </p>
 
     <mat-card appearance="outlined" class="card">
-      <mat-card-title>Add user</mat-card-title>
+      <mat-card-title>{{ 'tenantUsers.addUser' | translate }}</mat-card-title>
       <mat-card-content>
         @if (!primaryEmailDomain()) {
-          <p class="warn">
-            Primary email domain is not available. You cannot add users until it is configured.
-          </p>
+          <p class="warn">{{ 'tenantUsers.domainMissing' | translate }}</p>
         }
         <form [formGroup]="form" (ngSubmit)="create()" class="form">
           <mat-form-field appearance="outline">
-            <mat-label>Name</mat-label>
+            <mat-label>{{ 'tenantUsers.fields.name' | translate }}</mat-label>
             <input matInput formControlName="name" />
           </mat-form-field>
           <div class="email-local-row">
             <mat-form-field appearance="outline" class="email-local-field">
-              <mat-label>Email (local part)</mat-label>
+              <mat-label>{{ 'tenantUsers.fields.emailLocalPart' | translate }}</mat-label>
               <input matInput formControlName="emailLocalPart" autocomplete="off" />
               @if (form.get('emailLocalPart')?.invalid && form.get('emailLocalPart')?.touched) {
-                <mat-error
-                  >Letters, digits, dots, hyphens, underscores; no leading/trailing dots.</mat-error
-                >
+                <mat-error>{{ 'tenantUsers.fields.emailLocalPartError' | translate }}</mat-error>
               }
             </mat-form-field>
             <span class="email-suffix" [class.muted]="!primaryEmailDomain()">{{
@@ -74,15 +73,17 @@ const emailLocalPartPattern = /^(?:[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9])$/i;
             }}</span>
           </div>
           <mat-form-field appearance="outline">
-            <mat-label>Role</mat-label>
+            <mat-label>{{ 'tenantUsers.fields.role' | translate }}</mat-label>
             <mat-select formControlName="role">
-              <mat-option value="MANAGER">Manager</mat-option>
-              <mat-option value="AGENT">Agent</mat-option>
-              <mat-option value="REQUESTER">Requester</mat-option>
+              <mat-option value="MANAGER">{{ 'tenantUsers.roles.MANAGER' | translate }}</mat-option>
+              <mat-option value="AGENT">{{ 'tenantUsers.roles.AGENT' | translate }}</mat-option>
+              <mat-option value="REQUESTER">{{
+                'tenantUsers.roles.REQUESTER' | translate
+              }}</mat-option>
             </mat-select>
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>Password</mat-label>
+            <mat-label>{{ 'tenantUsers.fields.password' | translate }}</mat-label>
             <input matInput type="password" formControlName="password" />
           </mat-form-field>
           <button
@@ -91,17 +92,17 @@ const emailLocalPartPattern = /^(?:[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9])$/i;
             type="submit"
             [disabled]="form.invalid || busy() || !primaryEmailDomain()"
           >
-            Create
+            {{ 'tenantUsers.create' | translate }}
           </button>
         </form>
       </mat-card-content>
     </mat-card>
 
     <mat-card appearance="outlined" class="card">
-      <mat-card-title>Users</mat-card-title>
+      <mat-card-title>{{ 'tenantUsers.usersList' | translate }}</mat-card-title>
       <mat-card-content>
         @if (loading()) {
-          <p>Loading…</p>
+          <p>{{ 'tenantUsers.loading' | translate }}</p>
         } @else {
           <ul class="list">
             @for (u of users(); track u.id) {
@@ -114,10 +115,9 @@ const emailLocalPartPattern = /^(?:[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9])$/i;
                     type="button"
                     (click)="deactivate(u.id)"
                   >
-                    Deactivate
+                    {{ 'tenantUsers.deactivate' | translate }}
                   </button>
                 } @else {
-                  <!-- <span class="inactive">Inactive</span> -->
                   <button
                     class="inactive"
                     [disabled]="u.role == 'TENANT_ADMIN'"
@@ -125,7 +125,7 @@ const emailLocalPartPattern = /^(?:[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9])$/i;
                     type="button"
                     (click)="activate(u.id)"
                   >
-                    Inactive
+                    {{ 'tenantUsers.inactiveLabel' | translate }}
                   </button>
                 }
               </li>
@@ -203,6 +203,7 @@ export default class TenantUsersPage {
   private readonly api = inject(API_CONFIG);
   private readonly snack = inject(MatSnackBar);
   private readonly fb = inject(FormBuilder);
+  private readonly i18n = inject(TranslateService);
 
   readonly users = signal<UserRow[]>([]);
   readonly primaryEmailDomain = signal<string | null>(null);
@@ -222,7 +223,7 @@ export default class TenantUsersPage {
 
   primaryDomainSuffix(): string {
     const d = this.primaryEmailDomain();
-    return d ? `@${d}` : '(loading…)';
+    return d ? `@${d}` : this.i18n.instant('tenantUsers.domainLoading');
   }
 
   async reload(): Promise<void> {
@@ -234,7 +235,11 @@ export default class TenantUsersPage {
       this.primaryEmailDomain.set(res?.primaryEmailDomain ?? null);
       this.users.set(res?.users ?? []);
     } catch {
-      this.snack.open('Failed to load users', 'OK', { duration: 4000 });
+      this.snack.open(
+        this.i18n.instant('tenantUsers.snack.loadFailed'),
+        this.i18n.instant('common.ok'),
+        { duration: 4000 },
+      );
     } finally {
       this.loading.set(false);
     }
@@ -247,11 +252,13 @@ export default class TenantUsersPage {
       await firstValueFrom(
         this.http.post(`${this.api.restUrl}/tenant/users`, this.form.getRawValue()),
       );
-      this.snack.open('User created', 'OK', { duration: 3000 });
+      this.snack.open(this.i18n.instant('tenantUsers.snack.userCreated'), this.i18n.instant('common.ok'), {
+        duration: 3000,
+      });
       this.form.patchValue({ name: '', emailLocalPart: '', password: '' });
       await this.reload();
     } catch {
-      this.snack.open('Create failed (duplicate email or invalid local part)', 'OK', {
+      this.snack.open(this.i18n.instant('tenantUsers.snack.createFailed'), this.i18n.instant('common.ok'), {
         duration: 5000,
       });
     } finally {
@@ -266,7 +273,11 @@ export default class TenantUsersPage {
       );
       await this.reload();
     } catch {
-      this.snack.open('Update failed', 'OK', { duration: 4000 });
+      this.snack.open(
+        this.i18n.instant('tenantUsers.snack.updateFailed'),
+        this.i18n.instant('common.ok'),
+        { duration: 4000 },
+      );
     }
   }
 
@@ -277,7 +288,11 @@ export default class TenantUsersPage {
       );
       await this.reload();
     } catch {
-      this.snack.open('Update failed', 'OK', { duration: 4000 });
+      this.snack.open(
+        this.i18n.instant('tenantUsers.snack.updateFailed'),
+        this.i18n.instant('common.ok'),
+        { duration: 4000 },
+      );
     }
   }
 }
