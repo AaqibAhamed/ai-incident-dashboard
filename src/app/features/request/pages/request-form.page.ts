@@ -365,9 +365,11 @@ export default class RequestFormPage {
       this.uploadedFiles.set([]);
       this.requestTags.set([]);
       this.tagDraft.set('');
-    } catch {
+    } catch (e: unknown) {
+      const message = String((e as { message?: string })?.message ?? '');
+      const details = message.trim() ? ` Details: ${message}` : '';
       this.snack.open(
-        'Failed to submit service request. If backend was just updated, restart API and try again.',
+        `Failed to submit service request.${details}`,
         'OK',
         { duration: 6000 },
       );

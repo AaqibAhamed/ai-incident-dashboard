@@ -140,6 +140,10 @@ export class TicketsFacade {
           variables: vars,
         }),
       );
+      const errs = (res as unknown as { errors?: Array<{ message?: string }> }).errors ?? [];
+      if (errs.length) {
+        throw new Error(errs.map((e) => e.message ?? 'Unknown GraphQL error').join('\n'));
+      }
       return res.data?.createTicket.id ?? '';
     } catch (error: unknown) {
       const message = String((error as { message?: string })?.message ?? '');
@@ -154,6 +158,27 @@ export class TicketsFacade {
             variables: { input: retryInput },
           }),
         );
+        return retry.data?.createTicket.id ?? '';
+      }
+
+      const hasAttachments = Array.isArray(input.attachmentIds) && input.attachmentIds.length > 0;
+      // Backward-compatible path when an older backend schema lacks CreateTicketInput.attachmentIds.
+      if (
+        hasAttachments &&
+        message.includes('field `attachmentIds` does not exist on the type `CreateTicketInput`')
+      ) {
+        const retryInput = { ...input };
+        delete (retryInput as { attachmentIds?: string[] }).attachmentIds;
+        const retry = await firstValueFrom(
+          this.apollo.mutate({
+            mutation: CreateTicketDocument,
+            variables: { input: retryInput },
+          }),
+        );
+        const errs = (retry as unknown as { errors?: Array<{ message?: string }> }).errors ?? [];
+        if (errs.length) {
+          throw new Error(errs.map((e) => e.message ?? 'Unknown GraphQL error').join('\n'));
+        }
         return retry.data?.createTicket.id ?? '';
       }
       throw error;

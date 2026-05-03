@@ -58,11 +58,19 @@ public sealed class Mutation
             var selectedAssets = await db.MediaAssets
                 .Where(asset => input.AttachmentIds.Contains(asset.Id) && asset.TenantId == tenantId)
                 .ToListAsync(cancellationToken);
+
+            if (selectedAssets.Count != input.AttachmentIds.Count)
+            {
+                var missing = input.AttachmentIds.Except(selectedAssets.Select(a => a.Id)).ToList();
+                throw new GraphQLException($"Attachment(s) not found or not accessible: {string.Join(", ", missing)}");
+            }
+
             foreach (var asset in selectedAssets)
             {
                 ticket.Attachments.Add(new Attachment
                 {
-                    Id = asset.Id,
+                    // Attachment.Id is the PK; it must be unique even if the same asset is re-attached/retried.
+                    Id = $"{ticket.Id}-a-{asset.Id}",
                     TenantId = tenantId,
                     TicketId = ticket.Id,
                     FileName = asset.OriginalFileName,
@@ -73,7 +81,15 @@ public sealed class Mutation
         }
 
         db.Tickets.Add(ticket);
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            // Hot Chocolate may otherwise map unexpected DB exceptions to a generic "Unexpected Execution Error".
+            throw new GraphQLException($"Failed to create ticket due to a database error: {ex.GetBaseException().Message}");
+        }
         return ticket;
     }
 
@@ -201,11 +217,14 @@ public sealed class Mutation
 
     private static async Task<string> NextTicketId(AppDbContext db, string tenantId, CancellationToken cancellationToken)
     {
-        var max = await db.Tickets
-            .Where(t => t.TenantId == tenantId)
+        // Ticket.Id is a global primary key (not tenant-scoped), so the numeric sequence must be global
+        // to avoid collisions when multiple tenants exist.
+        var ids = await db.Tickets
+            .AsNoTracking()
             .Select(x => x.Id)
             .ToListAsync(cancellationToken);
-        var next = max
+
+        var next = ids
             .Select(id => id.StartsWith("t-") && int.TryParse(id[2..], out var parsed) ? parsed : 0)
             .DefaultIfEmpty(0)
             .Max() + 1;
