@@ -19,6 +19,13 @@ interface UserRow {
   isActive: boolean;
 }
 
+interface TenantUsersListResponse {
+  primaryEmailDomain: string | null;
+  users: UserRow[];
+}
+
+const emailLocalPartPattern = /^(?:[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9])$/i;
+
 @Component({
   selector: 'app-tenant-users',
   standalone: true,
@@ -33,20 +40,39 @@ interface UserRow {
   ],
   template: `
     <h1>Tenant users</h1>
-    <p class="sub">Create managers, agents, and requesters for your organization.</p>
+    <p class="sub">
+      New users sign in with your organization’s primary email domain. Enter only the part before
+      <span class="nowrap">&#64;</span>
+      — the domain is fixed.
+    </p>
 
     <mat-card appearance="outlined" class="card">
       <mat-card-title>Add user</mat-card-title>
       <mat-card-content>
+        @if (!primaryEmailDomain()) {
+          <p class="warn">
+            Primary email domain is not available. You cannot add users until it is configured.
+          </p>
+        }
         <form [formGroup]="form" (ngSubmit)="create()" class="form">
           <mat-form-field appearance="outline">
             <mat-label>Name</mat-label>
             <input matInput formControlName="name" />
           </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Email</mat-label>
-            <input matInput type="email" formControlName="email" />
-          </mat-form-field>
+          <div class="email-local-row">
+            <mat-form-field appearance="outline" class="email-local-field">
+              <mat-label>Email (local part)</mat-label>
+              <input matInput formControlName="emailLocalPart" autocomplete="off" />
+              @if (form.get('emailLocalPart')?.invalid && form.get('emailLocalPart')?.touched) {
+                <mat-error
+                  >Letters, digits, dots, hyphens, underscores; no leading/trailing dots.</mat-error
+                >
+              }
+            </mat-form-field>
+            <span class="email-suffix" [class.muted]="!primaryEmailDomain()">{{
+              primaryDomainSuffix()
+            }}</span>
+          </div>
           <mat-form-field appearance="outline">
             <mat-label>Role</mat-label>
             <mat-select formControlName="role">
@@ -59,7 +85,12 @@ interface UserRow {
             <mat-label>Password</mat-label>
             <input matInput type="password" formControlName="password" />
           </mat-form-field>
-          <button mat-flat-button color="primary" type="submit" [disabled]="form.invalid || busy()">
+          <button
+            mat-flat-button
+            color="primary"
+            type="submit"
+            [disabled]="form.invalid || busy() || !primaryEmailDomain()"
+          >
             Create
           </button>
         </form>
@@ -86,7 +117,16 @@ interface UserRow {
                     Deactivate
                   </button>
                 } @else {
-                  <span class="inactive">Inactive</span>
+                  <!-- <span class="inactive">Inactive</span> -->
+                  <button
+                    class="inactive"
+                    [disabled]="u.role == 'TENANT_ADMIN'"
+                    mat-button
+                    type="button"
+                    (click)="activate(u.id)"
+                  >
+                    Inactive
+                  </button>
                 }
               </li>
             }
@@ -100,6 +140,16 @@ interface UserRow {
       .sub {
         opacity: 0.75;
         margin-bottom: 1rem;
+        max-width: 42rem;
+        line-height: 1.45;
+      }
+      .nowrap {
+        white-space: nowrap;
+      }
+      .warn {
+        color: var(--mat-sys-error, #b3261e);
+        font-size: 0.9rem;
+        margin: 0 0 0.75rem;
       }
       .card {
         margin-bottom: 1rem;
@@ -110,6 +160,27 @@ interface UserRow {
         flex-wrap: wrap;
         gap: 0.75rem;
         align-items: flex-start;
+      }
+      .email-local-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.35rem 0.75rem;
+        width: 100%;
+      }
+      .email-local-field {
+        flex: 1;
+        min-width: 160px;
+        max-width: 260px;
+      }
+      .email-suffix {
+        font-size: 0.95rem;
+        font-weight: 500;
+        opacity: 0.85;
+        padding-top: 0.25rem;
+      }
+      .email-suffix.muted {
+        opacity: 0.45;
       }
       .list {
         list-style: none;
@@ -134,12 +205,13 @@ export default class TenantUsersPage {
   private readonly fb = inject(FormBuilder);
 
   readonly users = signal<UserRow[]>([]);
+  readonly primaryEmailDomain = signal<string | null>(null);
   readonly loading = signal(true);
   readonly busy = signal(false);
 
   readonly form = this.fb.nonNullable.group({
     name: ['', Validators.required],
-    email: ['', [Validators.required, Validators.email]],
+    emailLocalPart: ['', [Validators.required, Validators.pattern(emailLocalPartPattern)]],
     role: this.fb.nonNullable.control<UserRole>('AGENT', Validators.required),
     password: ['', [Validators.required, Validators.minLength(4)]],
   });
@@ -148,13 +220,19 @@ export default class TenantUsersPage {
     void this.reload();
   }
 
+  primaryDomainSuffix(): string {
+    const d = this.primaryEmailDomain();
+    return d ? `@${d}` : '(loading…)';
+  }
+
   async reload(): Promise<void> {
     this.loading.set(true);
     try {
-      const rows = await firstValueFrom(
-        this.http.get<UserRow[]>(`${this.api.restUrl}/tenant/users`),
+      const res = await firstValueFrom(
+        this.http.get<TenantUsersListResponse>(`${this.api.restUrl}/tenant/users`),
       );
-      this.users.set(rows ?? []);
+      this.primaryEmailDomain.set(res?.primaryEmailDomain ?? null);
+      this.users.set(res?.users ?? []);
     } catch {
       this.snack.open('Failed to load users', 'OK', { duration: 4000 });
     } finally {
@@ -163,17 +241,19 @@ export default class TenantUsersPage {
   }
 
   async create(): Promise<void> {
-    if (this.form.invalid) return;
+    if (this.form.invalid || !this.primaryEmailDomain()) return;
     this.busy.set(true);
     try {
       await firstValueFrom(
         this.http.post(`${this.api.restUrl}/tenant/users`, this.form.getRawValue()),
       );
       this.snack.open('User created', 'OK', { duration: 3000 });
-      this.form.patchValue({ name: '', email: '', password: '' });
+      this.form.patchValue({ name: '', emailLocalPart: '', password: '' });
       await this.reload();
     } catch {
-      this.snack.open('Create failed', 'OK', { duration: 5000 });
+      this.snack.open('Create failed (duplicate email or invalid local part)', 'OK', {
+        duration: 5000,
+      });
     } finally {
       this.busy.set(false);
     }
@@ -183,6 +263,17 @@ export default class TenantUsersPage {
     try {
       await firstValueFrom(
         this.http.patch(`${this.api.restUrl}/tenant/users/${id}`, { isActive: false }),
+      );
+      await this.reload();
+    } catch {
+      this.snack.open('Update failed', 'OK', { duration: 4000 });
+    }
+  }
+
+  async activate(id: string): Promise<void> {
+    try {
+      await firstValueFrom(
+        this.http.patch(`${this.api.restUrl}/tenant/users/${id}`, { isActive: true }),
       );
       await this.reload();
     } catch {

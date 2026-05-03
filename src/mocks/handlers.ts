@@ -323,15 +323,16 @@ export const handlers = [
   http.patch('/api/platform/tenants/:tenantId/restore', async () => HttpResponse.json({ ok: true })),
 
   http.get('/api/tenant/users', () =>
-    HttpResponse.json(
-      MOCK_USERS.map((u) => ({
+    HttpResponse.json({
+      primaryEmailDomain: 'example.com',
+      users: MOCK_USERS.map((u) => ({
         id: u.id,
         name: u.name,
         email: u.email,
         role: u.role,
         isActive: true,
       })),
-    ),
+    }),
   ),
 
   http.post('/api/tenant/users', async () => HttpResponse.json({ ok: true })),
