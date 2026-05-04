@@ -98,6 +98,16 @@ query Ticket($id: ID!) {
   }
 }
 
+query TenantUsers($activeOnly: Boolean = true) {
+  tenantUsers(activeOnly: $activeOnly) {
+    id
+    name
+    email
+    role
+    __typename
+  }
+}
+
 query DashboardMetrics($range: String!) {
   dashboardMetrics(range: $range) {
     openCount

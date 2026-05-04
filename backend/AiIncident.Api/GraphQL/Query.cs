@@ -97,6 +97,29 @@ public sealed class Query
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<List<User>> TenantUsers(
+        bool activeOnly,
+        [Service] AppDbContext db,
+        [Service] ICurrentUserContext ctx,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = TenantScopeGuard.RequireTenantId(ctx);
+        TenantScopeGuard.RequireUserId(ctx);
+
+        var query = db.Users
+            .AsNoTracking()
+            .Where(u => u.TenantId == tenantId);
+        if (activeOnly)
+        {
+            query = query.Where(u => u.IsActive);
+        }
+
+        // Only return assignable tenant users (exclude super admins implicitly by tenant scope).
+        return await query
+            .OrderBy(u => u.Name)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<DashboardMetrics> DashboardMetrics(
         string range,
         [Service] AppDbContext db,

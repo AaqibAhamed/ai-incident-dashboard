@@ -1,4 +1,5 @@
-import { Component, effect, inject, input, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Component, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -9,7 +10,10 @@ import { MatInputModule } from '@angular/material/input';
 import { MatListModule } from '@angular/material/list';
 import { MatSelectChange, MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { Apollo } from 'apollo-angular';
+import { firstValueFrom } from 'rxjs';
 import type { TicketQuery } from '../../../../graphql/generated/graphql';
+import { TenantUsersDocument, type TenantUsersQuery } from '../../../../graphql/generated/graphql';
 import { FEATURE_FLAGS } from '../../../core/tokens/feature-flags.token';
 import { TimeAgoPipe } from '../../../shared/pipes/time-ago.pipe';
 import { AiService } from '../../ai/ai.service';
@@ -68,7 +72,7 @@ import { TicketsFacade } from '../data/tickets.facade';
                     @for (a of t.attachments; track a.id) {
                       @if (isImageFile(a.fileName)) {
                         <a [href]="a.url" target="_blank" rel="noopener noreferrer">
-                          <img [src]="a.url" [alt]="a.fileName" loading="lazy" />
+                          <img [src]="attachmentPreviewUrl(a.id, a.url)" [alt]="a.fileName" loading="lazy" />
                         </a>
                       }
                     }
@@ -80,11 +84,13 @@ import { TicketsFacade } from '../data/tickets.facade';
               <mat-form-field appearance="outline">
                 <mat-label>Assignee</mat-label>
                 <mat-select
-                  [value]="t.assigneeId ?? 'u-agent'"
+                  [value]="t.assigneeId ?? ''"
                   (selectionChange)="onAssign($event)"
                 >
-                  <mat-option value="u-agent">Alex Agent</mat-option>
-                  <mat-option value="u-manager">Morgan Manager</mat-option>
+                  <mat-option value="" disabled>Select an assignee</mat-option>
+                  @for (u of tenantUsers(); track u.id) {
+                    <mat-option [value]="u.id">{{ u.name }} · {{ u.role }}</mat-option>
+                  }
                 </mat-select>
               </mat-form-field>
               <h3>Comments</h3>
@@ -309,6 +315,10 @@ export default class TicketDetailPage {
   readonly ticket = input<TicketQuery['ticket'] | null>(null);
   readonly ticketLive = signal<TicketQuery['ticket'] | null>(null);
 
+  private readonly http = inject(HttpClient);
+  private readonly apollo = inject(Apollo);
+  private readonly destroyRef = inject(DestroyRef);
+
   private readonly facade = inject(TicketsFacade);
   private readonly router = inject(Router);
   private readonly ai = inject(AiService);
@@ -316,6 +326,9 @@ export default class TicketDetailPage {
   readonly flags = inject(FEATURE_FLAGS);
 
   commentDraft = '';
+
+  readonly tenantUsers = signal<Array<TenantUsersQuery['tenantUsers'][number]>>([]);
+  readonly previewUrls = signal<Record<string, string>>({});
 
   readonly sumBusy = signal(false);
   readonly aiSummary = signal<{ problem: string; impact: string; nextSteps: string } | null>(null);
@@ -325,12 +338,63 @@ export default class TicketDetailPage {
   readonly aiBusy = signal(false);
 
   constructor() {
+    void this.loadTenantUsers();
+
     effect(
       () => {
         this.ticketLive.set(this.ticket());
       },
       { allowSignalWrites: true },
     );
+
+    // Sync blob previews with ticket attachments. Do NOT read `previewUrls()` here without
+    // `untracked` — otherwise every `previewUrls.set/update` re-runs this effect and freezes the tab.
+    effect(
+      () => {
+        const t = this.ticketLive();
+        const attachments = t?.attachments ?? [];
+
+        untracked(() => {
+          const current = this.previewUrls();
+          const keepIds = new Set(
+            attachments.filter((a) => this.isImageFile(a.fileName)).map((a) => a.id),
+          );
+
+          const next: Record<string, string> = {};
+          for (const id of keepIds) {
+            const url = current[id];
+            if (url) next[id] = url;
+          }
+
+          for (const [id, url] of Object.entries(current)) {
+            if (!keepIds.has(id)) {
+              URL.revokeObjectURL(url);
+            }
+          }
+
+          const sameMap =
+            Object.keys(next).length === Object.keys(current).length &&
+            Object.keys(next).every((k) => next[k] === current[k]);
+          if (!sameMap) {
+            this.previewUrls.set(next);
+          }
+
+          const urls = this.previewUrls();
+          for (const a of attachments) {
+            if (!this.isImageFile(a.fileName)) continue;
+            if (!urls[a.id]) {
+              void this.fetchPreview(a.id, a.url);
+            }
+          }
+        });
+      },
+      { allowSignalWrites: true },
+    );
+
+    this.destroyRef.onDestroy(() => {
+      const cur = this.previewUrls();
+      for (const url of Object.values(cur)) URL.revokeObjectURL(url);
+    });
   }
 
   async onAssign(ev: MatSelectChange): Promise<void> {
@@ -387,6 +451,35 @@ export default class TicketDetailPage {
 
   cancelSum(): void {
     this.sumAbort?.abort();
+  }
+
+  attachmentPreviewUrl(attachmentId: string, fallbackUrl: string): string {
+    return this.previewUrls()[attachmentId] ?? fallbackUrl;
+  }
+
+  private async fetchPreview(attachmentId: string, url: string): Promise<void> {
+    try {
+      const blob = await firstValueFrom(this.http.get(url, { responseType: 'blob' }));
+      const objectUrl = URL.createObjectURL(blob);
+      this.previewUrls.update((cur) => ({ ...cur, [attachmentId]: objectUrl }));
+    } catch {
+      // fall back to raw URL if blob fetch fails
+    }
+  }
+
+  private async loadTenantUsers(): Promise<void> {
+    try {
+      const res = await firstValueFrom(
+        this.apollo.query({
+          query: TenantUsersDocument,
+          variables: { activeOnly: true },
+          fetchPolicy: 'network-only',
+        }),
+      );
+      this.tenantUsers.set(res.data?.tenantUsers ?? []);
+    } catch {
+      this.tenantUsers.set([]);
+    }
   }
 
   isImageFile(fileName: string): boolean {

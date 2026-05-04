@@ -142,6 +142,7 @@ type Query {
   me: MePayload
   tickets(filter: TicketFilterInput, after: String, first: Int): TicketConnection!
   ticket(id: ID!): Ticket
+  tenantUsers(activeOnly: Boolean = true): [User!]!
   dashboardMetrics(range: String!): DashboardMetrics!
 }
 

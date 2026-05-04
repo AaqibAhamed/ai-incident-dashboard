@@ -28,6 +28,7 @@ public sealed class TicketFilterInput
     public string? Search { get; set; }
 }
 
+
 public sealed class CreateTicketInput
 {
     public string Title { get; set; } = default!;
