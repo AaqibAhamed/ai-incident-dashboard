@@ -21,10 +21,7 @@ import { AuthStore, type LoginCredentials } from '../../core/auth/auth.store';
     <div class="wrap">
       <mat-card appearance="outlined" class="card">
         <mat-card-title>Sign in</mat-card-title>
-        <mat-card-subtitle>
-          Tenant is resolved from your work email domain. Platform admins use a vendor email (e.g.
-          super&#64;ai-platform.internal). Password for seeded accounts: <code>demo</code>.
-        </mat-card-subtitle>
+        <mat-card-subtitle> Tenant is resolved from your work email domain. </mat-card-subtitle>
         <mat-card-content>
           <form [formGroup]="form" (ngSubmit)="onSubmit()">
             <mat-form-field appearance="outline" class="full">
@@ -33,16 +30,24 @@ import { AuthStore, type LoginCredentials } from '../../core/auth/auth.store';
             </mat-form-field>
             <mat-form-field appearance="outline" class="full">
               <mat-label>Password</mat-label>
-              <input matInput type="password" formControlName="password" autocomplete="current-password" />
+              <input
+                matInput
+                type="password"
+                formControlName="password"
+                autocomplete="current-password"
+              />
             </mat-form-field>
-            <button mat-flat-button color="primary" type="submit" [disabled]="form.invalid || busy()">
+            <button
+              mat-flat-button
+              color="primary"
+              type="submit"
+              [disabled]="form.invalid || busy()"
+            >
               Continue
             </button>
           </form>
         </mat-card-content>
-        <mat-card-footer class="foot">
-          <span>Demo tenant: morgan&#64;example.com / demo · Platform: super&#64;ai-platform.internal / demo</span>
-        </mat-card-footer>
+        <mat-card-footer class="foot"> </mat-card-footer>
       </mat-card>
     </div>
   `,
@@ -81,8 +86,8 @@ export default class LoginPage {
   readonly busy = signal(false);
 
   readonly form = this.fb.nonNullable.group({
-    email: ['morgan@example.com', [Validators.required, Validators.email]],
-    password: ['demo', Validators.required],
+    email: ['name@example.com', [Validators.required, Validators.email]],
+    password: ['', Validators.required],
   });
 
   async onSubmit(): Promise<void> {

@@ -10,10 +10,10 @@ public class TenantScopeGuardTests
 {
     private sealed class StubCtx : ICurrentUserContext
     {
-        public string? UserId { get; set; } = "u1";
-        public string? TenantId { get; set; }
-        public string? TenantSlug => "demo";
-        public UserRole? Role { get; set; }
+        public string UserId => "u1";
+        public string? TenantId { get; init; }
+        public string TenantSlug => "demo";
+        public UserRole? Role { get; init; }
         public bool IsSuperAdmin => Role == UserRole.SUPER_ADMIN;
         public bool IsAuthenticated => true;
     }
