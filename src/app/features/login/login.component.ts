@@ -32,7 +32,7 @@ export class LoginComponent {
   version = '1.0.0'; // TODO: get from env or build config
 
   readonly form = this.fb.nonNullable.group({
-    email: ['name@example.com', [Validators.required, Validators.email]],
+    email: ['', [Validators.required, Validators.email]],
     password: ['', Validators.required],
   });
 

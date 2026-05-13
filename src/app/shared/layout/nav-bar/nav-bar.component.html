@@ -1,0 +1,77 @@
+<mat-sidenav-container class="shell">
+  <mat-sidenav mode="side" opened class="nav">
+    <div class="brand">{{ 'shell.brand' | translate }}</div>
+    <mat-nav-list>
+      @if (canPlatform()) {
+        <a mat-list-item routerLink="/platform/tenants" routerLinkActive="active">{{
+          'shell.nav.platformTenants' | translate
+        }}</a>
+      }
+      @if (canTenantAdmin()) {
+        <a mat-list-item routerLink="/tenant/users" routerLinkActive="active">{{
+          'shell.nav.tenantUsers' | translate
+        }}</a>
+      }
+      @if (canDash()) {
+        <a mat-list-item routerLink="/dashboard" routerLinkActive="active">{{
+          'shell.nav.dashboard' | translate
+        }}</a>
+      }
+      @if (canTickets()) {
+        <a mat-list-item routerLink="/tickets" routerLinkActive="active">{{
+          'shell.nav.tickets' | translate
+        }}</a>
+      }
+      @if (showRequest()) {
+        <a mat-list-item routerLink="/request" routerLinkActive="active">{{
+          'shell.nav.newRequest' | translate
+        }}</a>
+      }
+    </mat-nav-list>
+  </mat-sidenav>
+  <mat-sidenav-content class="content">
+    <mat-toolbar class="topbar">
+      <span class="topbar-title">
+        {{ 'shell.topbarTitle' | translate }}
+        @if (auth.tenant(); as t) {
+          <span class="tenant-chip">{{ t.name }}</span>
+        }
+      </span>
+      <span class="spacer"></span>
+      <span class="locale-switch" role="group" [attr.aria-label]="'shell.localeAria' | translate">
+        <button
+          mat-button
+          type="button"
+          class="locale-btn"
+          [class.locale-btn-active]="locale() === 'en'"
+          (click)="i18n.setLocale('en')"
+        >
+          {{ 'shell.localeEn' | translate }}
+        </button>
+        <button
+          mat-button
+          type="button"
+          class="locale-btn"
+          [class.locale-btn-active]="locale() === 'sv'"
+          (click)="i18n.setLocale('sv')"
+        >
+          {{ 'shell.localeSv' | translate }}
+        </button>
+      </span>
+      <button
+        mat-icon-button
+        type="button"
+        (click)="theme.toggle()"
+        [attr.aria-label]="'shell.toggleTheme' | translate"
+      >
+        <mat-icon>{{ theme.dark() ? 'light_mode' : 'dark_mode' }}</mat-icon>
+      </button>
+      <button mat-button type="button" (click)="logout()">{{ 'shell.logout' | translate }}</button>
+    </mat-toolbar>
+    <main class="main">
+      <div class="page">
+        <router-outlet />
+      </div>
+    </main>
+  </mat-sidenav-content>
+</mat-sidenav-container>

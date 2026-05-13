@@ -14,7 +14,8 @@ export const routes: Routes = [
   {
     path: '',
     canActivate: [authGuard],
-    loadComponent: () => import('./shared/layout/app-shell.component'),
+    loadComponent: () =>
+      import('./shared/layout/nav-bar/nav-bar.component').then((m) => m.NavBarComponent),
     children: [
       {
         path: '',
