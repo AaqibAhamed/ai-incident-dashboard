@@ -1,0 +1,94 @@
+:root {
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  /* Brand */
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-soft: #dbeafe;
+  --color-accent: #3b82f6;
+
+  /* Layout */
+  --color-navbar: #0f172a;
+  --color-sidebar: #111827;
+  --color-footer: #0f172a;
+
+  /* Surfaces */
+  --color-page-bg: #d6e3ff;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-surface-muted: #f1f5f9;
+
+  /* Borders */
+  --color-border-hairline: rgba(15, 23, 42, 0.08);
+  --color-border-soft: rgba(15, 23, 42, 0.05);
+
+  /* Text */
+  --color-text-primary: rgba(15, 23, 42, 0.92);
+  --color-text-secondary: rgba(15, 23, 42, 0.72);
+  --color-text-muted: rgba(15, 23, 42, 0.55);
+  --color-text-subtle: rgba(15, 23, 42, 0.42);
+  --color-text-on-dark: rgba(255, 255, 255, 0.92);
+
+  /* Effects */
+  --color-shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --color-shadow-medium: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --color-shadow-large: 0 20px 45px rgba(15, 23, 42, 0.12);
+
+  /* Interactive */
+  --color-hover-overlay: rgba(37, 99, 235, 0.06);
+  --color-focus-ring: rgba(37, 99, 235, 0.22);
+}
+
+/* =========================
+   Dark Theme - Blue + Slate
+========================== */
+.app-dark-theme {
+  /* Brand */
+  --color-primary: #3b82f6;
+  --color-primary-hover: #60a5fa;
+  --color-primary-soft: rgba(59, 130, 246, 0.16);
+  --color-accent: #60a5fa;
+
+  /* Layout */
+  --color-navbar: #020617;
+  --color-sidebar: #0f172a;
+  --color-footer: #020617;
+
+  /* Surfaces */
+  --color-page-bg: #020617;
+  --color-surface: #0f172a;
+  --color-surface-elevated: #111827;
+  --color-surface-muted: #1e293b;
+
+  /* Borders */
+  --color-border-hairline: rgba(255, 255, 255, 0.08);
+  --color-border-soft: rgba(255, 255, 255, 0.05);
+
+  /* Text */
+  --color-text-primary: rgba(255, 255, 255, 0.94);
+  --color-text-secondary: rgba(255, 255, 255, 0.72);
+  --color-text-muted: rgba(255, 255, 255, 0.58);
+  --color-text-subtle: rgba(255, 255, 255, 0.42);
+  --color-text-on-dark: rgba(255, 255, 255, 0.94);
+
+  /* Effects */
+  --color-shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.28);
+  --color-shadow-medium: 0 12px 32px rgba(0, 0, 0, 0.34);
+  --color-shadow-large: 0 24px 56px rgba(0, 0, 0, 0.42);
+
+  /* Interactive */
+  --color-hover-overlay: rgba(59, 130, 246, 0.1);
+  --color-focus-ring: rgba(96, 165, 250, 0.28);
+}

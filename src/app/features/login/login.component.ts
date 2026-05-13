@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -12,6 +13,7 @@ import { AuthStore, type LoginCredentials } from '../../core/auth/auth.store';
   standalone: true,
   imports: [
     ReactiveFormsModule,
+    CommonModule,
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
@@ -27,6 +29,7 @@ export class LoginComponent {
   private readonly router = inject(Router);
 
   readonly busy = signal(false);
+  version = '1.0.0'; // TODO: get from env or build config
 
   readonly form = this.fb.nonNullable.group({
     email: ['name@example.com', [Validators.required, Validators.email]],

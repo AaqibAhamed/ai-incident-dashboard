@@ -1,13 +1,20 @@
 <div class="wrap">
-  <mat-card appearance="outlined" class="card">
-    <mat-card-title>Sign in</mat-card-title>
-    <mat-card-subtitle> Tenant is resolved from your work email domain. </mat-card-subtitle>
+  <mat-card class="card premium-card" appearance="outlined">
+    <div class="brand">
+      <img src="assets/ins.jpeg" alt="App logo" class="logo" />
+      <div>
+        <h1 class="title">Sign in</h1>
+        <p class="subtitle">Tenant is resolved from your work email domain.</p>
+      </div>
+    </div>
+
     <mat-card-content>
-      <form [formGroup]="form" (ngSubmit)="onSubmit()">
+      <form [formGroup]="form" (ngSubmit)="onSubmit()" class="form">
         <mat-form-field appearance="outline" class="full">
           <mat-label>Email</mat-label>
           <input matInput type="email" formControlName="email" autocomplete="username" />
         </mat-form-field>
+
         <mat-form-field appearance="outline" class="full">
           <mat-label>Password</mat-label>
           <input
@@ -17,11 +24,21 @@
             autocomplete="current-password"
           />
         </mat-form-field>
-        <button mat-flat-button color="primary" type="submit" [disabled]="form.invalid || busy()">
-          Continue
-        </button>
+
+        <div class="actions">
+          <button mat-flat-button color="primary" type="submit" [disabled]="form.invalid || busy()">
+            <span *ngIf="!busy()">Continue</span>
+            <span *ngIf="busy()">Signing in…</span>
+          </button>
+        </div>
       </form>
     </mat-card-content>
-    <mat-card-footer class="foot"> </mat-card-footer>
+
+    <mat-card-footer class="foot">
+      <div class="footer-row">
+        <small>Need help? Contact your tenant admin.</small>
+        <small class="version">v{{ version }}</small>
+      </div>
+    </mat-card-footer>
   </mat-card>
 </div>

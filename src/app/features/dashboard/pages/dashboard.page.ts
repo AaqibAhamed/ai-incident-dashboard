@@ -136,7 +136,9 @@ import { DashboardFacade } from '../data/dashboard.facade';
       <mat-card class="section surface-card manager" appearance="outlined">
         <mat-card-header>
           <mat-card-title>Tickets manager</mat-card-title>
-          <mat-card-subtitle>View, update, comment, tag, and delete tickets from dashboard</mat-card-subtitle>
+          <mat-card-subtitle
+            >View, update, comment, tag, and delete tickets from dashboard</mat-card-subtitle
+          >
         </mat-card-header>
         <mat-card-content>
           @if (facade.ticketError()) {
@@ -150,7 +152,12 @@ import { DashboardFacade } from '../data/dashboard.facade';
                     <span class="ticket-title">{{ t.title }}</span>
                     <span class="ticket-meta">{{ t.status }} · {{ t.priority }}</span>
                   </button>
-                  <button mat-button type="button" class="ticket-delete" (click)="deleteTicket(t.id)">
+                  <button
+                    mat-button
+                    type="button"
+                    class="ticket-delete"
+                    (click)="deleteTicket(t.id)"
+                  >
                     Delete
                   </button>
                 </div>
@@ -166,11 +173,19 @@ import { DashboardFacade } from '../data/dashboard.facade';
                 <div class="editor-grid">
                   <mat-form-field appearance="outline">
                     <mat-label>Title</mat-label>
-                    <input matInput [(ngModel)]="editTitle" [ngModelOptions]="{ standalone: true }" />
+                    <input
+                      matInput
+                      [(ngModel)]="editTitle"
+                      [ngModelOptions]="{ standalone: true }"
+                    />
                   </mat-form-field>
                   <mat-form-field appearance="outline">
                     <mat-label>Category</mat-label>
-                    <input matInput [(ngModel)]="editCategory" [ngModelOptions]="{ standalone: true }" />
+                    <input
+                      matInput
+                      [(ngModel)]="editCategory"
+                      [ngModelOptions]="{ standalone: true }"
+                    />
                   </mat-form-field>
                   <mat-form-field appearance="outline" class="full">
                     <mat-label>Description</mat-label>
@@ -183,10 +198,7 @@ import { DashboardFacade } from '../data/dashboard.facade';
                   </mat-form-field>
                   <mat-form-field appearance="outline">
                     <mat-label>Status</mat-label>
-                    <mat-select
-                      [(ngModel)]="editStatus"
-                      [ngModelOptions]="{ standalone: true }"
-                    >
+                    <mat-select [(ngModel)]="editStatus" [ngModelOptions]="{ standalone: true }">
                       @for (s of statuses; track s) {
                         <mat-option [value]="s">{{ s }}</mat-option>
                       }
@@ -194,10 +206,7 @@ import { DashboardFacade } from '../data/dashboard.facade';
                   </mat-form-field>
                   <mat-form-field appearance="outline">
                     <mat-label>Priority</mat-label>
-                    <mat-select
-                      [(ngModel)]="editPriority"
-                      [ngModelOptions]="{ standalone: true }"
-                    >
+                    <mat-select [(ngModel)]="editPriority" [ngModelOptions]="{ standalone: true }">
                       @for (p of priorities; track p) {
                         <mat-option [value]="p">{{ p }}</mat-option>
                       }
@@ -205,7 +214,11 @@ import { DashboardFacade } from '../data/dashboard.facade';
                   </mat-form-field>
                   <mat-form-field appearance="outline" class="full">
                     <mat-label>Tags (comma-separated)</mat-label>
-                    <input matInput [(ngModel)]="editTags" [ngModelOptions]="{ standalone: true }" />
+                    <input
+                      matInput
+                      [(ngModel)]="editTags"
+                      [ngModelOptions]="{ standalone: true }"
+                    />
                   </mat-form-field>
                 </div>
                 <div class="row-actions">
@@ -222,7 +235,8 @@ import { DashboardFacade } from '../data/dashboard.facade';
                   @if (facade.selectedTicket()?.comments?.length) {
                     @for (c of facade.selectedTicket()?.comments ?? []; track c.id) {
                       <p class="comment-item">
-                        <strong>{{ c.author?.name ?? 'User' }}</strong> · {{ c.createdAt | timeAgo }}<br />
+                        <strong>{{ c.author?.name ?? 'User' }}</strong> · {{ c.createdAt | timeAgo
+                        }}<br />
                         {{ c.body }}
                       </p>
                     }
@@ -238,7 +252,9 @@ import { DashboardFacade } from '../data/dashboard.facade';
                       [ngModelOptions]="{ standalone: true }"
                     ></textarea>
                   </mat-form-field>
-                  <button mat-stroked-button type="button" (click)="addComment()">Add comment</button>
+                  <button mat-stroked-button type="button" (click)="addComment()">
+                    Add comment
+                  </button>
                 </div>
               }
             </div>
@@ -260,15 +276,17 @@ import { DashboardFacade } from '../data/dashboard.facade';
         gap: var(--space-6);
         margin-bottom: var(--space-8);
         padding-bottom: var(--space-6);
-        border-bottom: 1px solid var(--color-border-soft);
+        border-bottom: 1px solid rgba(11, 31, 58, 0.06);
       }
       .title {
         margin-bottom: var(--space-2);
+        color: #071329; /* deep navy */
+        font-weight: 700;
       }
       .lede {
         margin: 0;
         font-size: 0.95rem;
-        color: var(--color-text-muted);
+        color: #4a6b86;
         max-width: 36rem;
         line-height: 1.5;
       }
@@ -289,19 +307,19 @@ import { DashboardFacade } from '../data/dashboard.facade';
       }
       .kpi {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: var(--space-5);
         margin-bottom: var(--space-8);
       }
       .stat mat-card-content {
-        padding: var(--space-6) !important;
+        padding: calc(var(--space-6) + 4px) !important;
       }
       .stat-label {
         font-size: 0.7rem;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.06em;
-        color: var(--color-text-subtle);
+        color: #5b7b93;
         margin-bottom: var(--space-2);
       }
       .stat-value {
@@ -311,9 +329,15 @@ import { DashboardFacade } from '../data/dashboard.facade';
         line-height: 1.15;
         margin-bottom: var(--space-2);
       }
+      .stat.surface-card {
+        background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+        border: 1px solid rgba(11, 31, 58, 0.04);
+        box-shadow: 0 6px 18px rgba(14, 30, 50, 0.04);
+        border-radius: 10px;
+      }
       .stat-hint {
         font-size: 0.8rem;
-        color: var(--color-text-muted);
+        color: #6b8899;
       }
       .section {
         margin-top: var(--space-6);
@@ -333,11 +357,11 @@ import { DashboardFacade } from '../data/dashboard.facade';
       }
       .chart-name {
         font-size: 0.875rem;
-        color: var(--color-text-muted);
+        color: #213a52;
       }
       .bar-track {
-        height: 8px;
-        background: rgba(15, 23, 42, 0.06);
+        height: 10px;
+        background: rgba(11, 31, 58, 0.06);
         border-radius: 999px;
         overflow: hidden;
       }
@@ -347,9 +371,9 @@ import { DashboardFacade } from '../data/dashboard.facade';
       .bar-fill {
         height: 100%;
         border-radius: 999px;
-        background: rgba(71, 85, 105, 0.38);
-        min-width: 4px;
-        transition: width 0.25s ease;
+        background: linear-gradient(90deg, #4f8ef7 0%, #6cc1ff 100%);
+        min-width: 6px;
+        transition: width 0.35s cubic-bezier(0.2, 0.9, 0.3, 1);
       }
       :host-context(.app-dark-theme) .bar-fill {
         background: rgba(148, 163, 184, 0.35);
@@ -358,7 +382,7 @@ import { DashboardFacade } from '../data/dashboard.facade';
         font-size: 0.875rem;
         font-weight: 500;
         text-align: right;
-        color: var(--color-text-muted);
+        color: #2b485e;
       }
       .ai mat-card-header {
         padding: var(--space-6) var(--space-6) 0;
@@ -369,7 +393,7 @@ import { DashboardFacade } from '../data/dashboard.facade';
       .ai-body {
         font-size: 0.95rem;
         line-height: 1.6;
-        color: var(--color-text-muted);
+        color: #324a5f;
         margin-bottom: var(--space-4);
       }
       .row-actions {
@@ -382,10 +406,10 @@ import { DashboardFacade } from '../data/dashboard.facade';
         margin: 0 0 var(--space-4);
         padding: var(--space-4);
         font-size: 0.9rem;
-        color: var(--color-text-muted);
-        background: var(--color-surface);
-        border: 1px solid var(--color-border-hairline);
-        border-radius: var(--radius-sm);
+        color: #3b5569;
+        background: #fff7f3;
+        border: 1px solid rgba(219, 87, 76, 0.12);
+        border-radius: 8px;
       }
       .muted {
         color: var(--color-text-subtle);
@@ -397,8 +421,9 @@ import { DashboardFacade } from '../data/dashboard.facade';
       }
       .manager-grid {
         display: grid;
-        grid-template-columns: minmax(240px, 320px) 1fr;
+        grid-template-columns: minmax(260px, 360px) 1fr;
         gap: var(--space-6);
+        align-items: start;
       }
       @media (max-width: 980px) {
         .manager-grid {
@@ -411,20 +436,21 @@ import { DashboardFacade } from '../data/dashboard.facade';
         gap: var(--space-2);
         max-height: 520px;
         overflow: auto;
-        padding-right: var(--space-2);
+        padding-right: var(--space-3);
       }
       .ticket-item {
-        border: 1px solid var(--color-border-hairline);
-        border-radius: var(--radius-sm);
-        padding: var(--space-2);
+        border: 1px solid rgba(11, 31, 58, 0.06);
+        border-radius: 10px;
+        padding: calc(var(--space-2) + 2px);
         display: flex;
         gap: var(--space-2);
         align-items: center;
         justify-content: space-between;
-        background: var(--color-surface);
+        background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
       }
       .ticket-item.active {
-        border-color: var(--color-border-soft);
+        border-color: rgba(79, 142, 247, 0.4);
+        box-shadow: 0 6px 18px rgba(79, 142, 247, 0.06);
       }
       .ticket-open {
         flex: 1;
@@ -440,7 +466,7 @@ import { DashboardFacade } from '../data/dashboard.facade';
       }
       .ticket-meta {
         display: block;
-        color: var(--color-text-muted);
+        color: #6b7f8f;
         font-size: 0.8rem;
       }
       .editor-grid {
