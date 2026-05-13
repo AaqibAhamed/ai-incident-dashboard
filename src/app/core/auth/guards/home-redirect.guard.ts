@@ -7,7 +7,10 @@ export const homeRedirectGuard: CanActivateFn = () => {
   const auth = inject(AuthStore);
   const router = inject(Router);
   const role = auth.user()?.role;
-  if (role === 'MANAGER') {
+  if (role === 'SUPER_ADMIN') {
+    return router.parseUrl('/platform/tenants');
+  }
+  if (role === 'MANAGER' || role === 'TENANT_ADMIN') {
     return router.parseUrl('/dashboard');
   }
   if (role === 'AGENT') {

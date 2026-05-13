@@ -1,3 +1,20 @@
+query Me {
+  me {
+    user {
+      id
+      name
+      email
+      role
+    }
+    tenant {
+      id
+      name
+      slug
+      status
+    }
+  }
+}
+
 query Tickets($filter: TicketFilterInput, $after: String, $first: Int) {
   tickets(filter: $filter, after: $after, first: $first) {
     edges {
@@ -78,6 +95,16 @@ query Ticket($id: ID!) {
       url
       uploadedAt
     }
+  }
+}
+
+query TenantUsers($activeOnly: Boolean = true) {
+  tenantUsers(activeOnly: $activeOnly) {
+    id
+    name
+    email
+    role
+    __typename
   }
 }
 

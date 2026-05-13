@@ -18,7 +18,16 @@ public enum TicketPriority
 
 public enum UserRole
 {
-    AGENT,
+    SUPER_ADMIN,
+    TENANT_ADMIN,
     MANAGER,
+    AGENT,
     REQUESTER
+}
+
+public enum TenantStatus
+{
+    Active = 0,
+    Deleted = 1,
+    Suspended = 2
 }

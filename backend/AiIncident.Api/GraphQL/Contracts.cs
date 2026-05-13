@@ -28,12 +28,14 @@ public sealed class TicketFilterInput
     public string? Search { get; set; }
 }
 
+
 public sealed class CreateTicketInput
 {
     public string Title { get; set; } = default!;
     public string Description { get; set; } = default!;
     public TicketPriority Priority { get; set; }
     public string Category { get; set; } = default!;
+    public List<string>? Tags { get; set; }
     public List<string>? AttachmentIds { get; set; }
 }
 
@@ -45,4 +47,18 @@ public sealed class UpdateTicketInput
     public string? Description { get; set; }
     public string? Category { get; set; }
     public List<string>? Tags { get; set; }
+}
+
+public sealed class MePayload
+{
+    public User User { get; set; } = default!;
+    public TenantGql? Tenant { get; set; }
+}
+
+public sealed class TenantGql
+{
+    public string Id { get; set; } = default!;
+    public string Name { get; set; } = default!;
+    public string Slug { get; set; } = default!;
+    public TenantStatus Status { get; set; }
 }

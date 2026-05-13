@@ -6,6 +6,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectChange, MatSelectModule } from '@angular/material/select';
+import { Router } from '@angular/router';
 import { FEATURE_FLAGS } from '../../../core/tokens/feature-flags.token';
 import type { TicketPriority, TicketStatus } from '../../../../graphql/generated/graphql';
 import { TimeAgoPipe } from '../../../shared/pipes/time-ago.pipe';
@@ -465,6 +466,7 @@ import { DashboardFacade } from '../data/dashboard.facade';
 export default class DashboardPage implements OnInit {
   readonly facade = inject(DashboardFacade);
   private readonly ai = inject(AiService);
+  private readonly router = inject(Router);
   readonly flags = inject(FEATURE_FLAGS);
 
   readonly range = signal<'week' | 'month'>('week');
@@ -508,9 +510,7 @@ export default class DashboardPage implements OnInit {
   }
 
   async openTicket(id: string): Promise<void> {
-    this.selectedId.set(id);
-    await this.facade.loadTicket(id);
-    this.syncEditFields();
+    await this.router.navigate(['/tickets', id]);
   }
 
   async saveTicket(): Promise<void> {

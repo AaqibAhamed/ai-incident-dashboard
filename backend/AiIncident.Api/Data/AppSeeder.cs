@@ -1,26 +1,103 @@
 using AiIncident.Api.Models;
+using AiIncident.Api.Services;
+using Microsoft.EntityFrameworkCore;
 
 namespace AiIncident.Api.Data;
 
 public static class AppSeeder
 {
-    public static void Seed(AppDbContext db)
+    public static void Seed(AppDbContext db, IPasswordHasher passwordHasher)
     {
-        if (db.Users.Any() || db.Tickets.Any())
+        if (db.Tenants.Any())
         {
             return;
         }
 
+        var now = DateTime.UtcNow;
+        const string demoTenantId = "tenant-demo";
+        const string defaultPassword = "demo";
+
+        var tenant = new Tenant
+        {
+            Id = demoTenantId,
+            Name = "Demo Corporation",
+            Slug = "demo",
+            Status = TenantStatus.Active,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        db.Tenants.Add(tenant);
+        db.TenantEmailDomains.Add(new TenantEmailDomain
+        {
+            Domain = "example.com",
+            TenantId = demoTenantId,
+            IsPrimary = true
+        });
+
+        var superAdmin = new User
+        {
+            Id = "u-super-admin",
+            TenantId = null,
+            Name = "Platform Super Admin",
+            Email = "super@ai-platform.internal",
+            Role = UserRole.SUPER_ADMIN,
+            PasswordHash = passwordHasher.HashPassword(defaultPassword),
+            IsActive = true
+        };
+        db.Users.Add(superAdmin);
+
         var users = new[]
         {
-            new User { Id = "u-agent", Name = "Alex Agent", Email = "alex@example.com", Role = UserRole.AGENT },
-            new User { Id = "u-manager", Name = "Morgan Manager", Email = "morgan@example.com", Role = UserRole.MANAGER },
-            new User { Id = "u-requester", Name = "Riley Requester", Email = "riley@example.com", Role = UserRole.REQUESTER }
+            new User
+            {
+                Id = "u-tenant-admin",
+                TenantId = demoTenantId,
+                Name = "Taylor Tenant Admin",
+                Email = "admin@example.com",
+                Role = UserRole.TENANT_ADMIN,
+                PasswordHash = passwordHasher.HashPassword(defaultPassword),
+                IsActive = true
+            },
+            new User
+            {
+                Id = "u-agent",
+                TenantId = demoTenantId,
+                Name = "Alex Agent",
+                Email = "alex@example.com",
+                Role = UserRole.AGENT,
+                PasswordHash = passwordHasher.HashPassword(defaultPassword),
+                IsActive = true
+            },
+            new User
+            {
+                Id = "u-manager",
+                TenantId = demoTenantId,
+                Name = "Morgan Manager",
+                Email = "morgan@example.com",
+                Role = UserRole.MANAGER,
+                PasswordHash = passwordHasher.HashPassword(defaultPassword),
+                IsActive = true
+            },
+            new User
+            {
+                Id = "u-requester",
+                TenantId = demoTenantId,
+                Name = "Riley Requester",
+                Email = "riley@example.com",
+                Role = UserRole.REQUESTER,
+                PasswordHash = passwordHasher.HashPassword(defaultPassword),
+                IsActive = true
+            }
         };
         db.Users.AddRange(users);
 
         var teamNames = new[] { "Network", "Identity", "Platform", "Support" };
-        var teams = teamNames.Select((name, index) => new Team { Id = $"t{index + 1}", Name = name }).ToArray();
+        var teams = teamNames.Select((name, index) => new Team
+        {
+            Id = $"{demoTenantId}-tm-{index + 1}",
+            TenantId = demoTenantId,
+            Name = name
+        }).ToArray();
         db.Teams.AddRange(teams);
 
         var titles = new[]
@@ -33,11 +110,12 @@ public static class AppSeeder
             "Database connection pool exhausted", "S3 bucket policy review"
         };
 
+        var statuses = new[] { TicketStatus.OPEN, TicketStatus.IN_PROGRESS, TicketStatus.RESOLVED, TicketStatus.CLOSED };
+        var priorities = new[] { TicketPriority.P1, TicketPriority.P2, TicketPriority.P3, TicketPriority.P4 };
+
         for (var i = 0; i < titles.Length; i++)
         {
             var idx = i + 1;
-            var statuses = new[] { TicketStatus.OPEN, TicketStatus.IN_PROGRESS, TicketStatus.RESOLVED, TicketStatus.CLOSED };
-            var priorities = new[] { TicketPriority.P1, TicketPriority.P2, TicketPriority.P3, TicketPriority.P4 };
             var status = statuses[i % 4];
             var priority = priorities[i % 4];
             var slaBreached = priority == TicketPriority.P1 && status == TicketStatus.OPEN;
@@ -48,6 +126,7 @@ public static class AppSeeder
             var ticket = new Ticket
             {
                 Id = ticketId,
+                TenantId = demoTenantId,
                 Title = titles[i],
                 Description = $"Detailed description for {titles[i]}. Environment: prod. Steps to reproduce documented internally.",
                 Status = status,
@@ -67,6 +146,7 @@ public static class AppSeeder
             ticket.Comments.Add(new Comment
             {
                 Id = $"{ticketId}-c1",
+                TenantId = demoTenantId,
                 TicketId = ticketId,
                 AuthorId = "u-requester",
                 Body = "Initial report — seeing errors in VPN client.",
@@ -75,6 +155,7 @@ public static class AppSeeder
             ticket.Comments.Add(new Comment
             {
                 Id = $"{ticketId}-c2",
+                TenantId = demoTenantId,
                 TicketId = ticketId,
                 AuthorId = "u-agent",
                 Body = "Thanks — checking gateway logs now.",
@@ -83,6 +164,7 @@ public static class AppSeeder
             ticket.History.Add(new TicketHistoryEntry
             {
                 Id = $"{ticketId}-h1",
+                TenantId = demoTenantId,
                 TicketId = ticketId,
                 Action = "CREATED",
                 Details = "Ticket opened",
@@ -91,6 +173,7 @@ public static class AppSeeder
             ticket.History.Add(new TicketHistoryEntry
             {
                 Id = $"{ticketId}-h2",
+                TenantId = demoTenantId,
                 TicketId = ticketId,
                 Action = "COMMENT_ADDED",
                 Details = null,
@@ -101,6 +184,7 @@ public static class AppSeeder
                 ticket.Attachments.Add(new Attachment
                 {
                     Id = $"{ticketId}-a1",
+                    TenantId = demoTenantId,
                     TicketId = ticketId,
                     FileName = "trace.log",
                     Url = "/api/files/trace.log",

@@ -1,4 +1,5 @@
-import { Component, inject, input, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Component, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -9,7 +10,10 @@ import { MatInputModule } from '@angular/material/input';
 import { MatListModule } from '@angular/material/list';
 import { MatSelectChange, MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { Apollo } from 'apollo-angular';
+import { firstValueFrom } from 'rxjs';
 import type { TicketQuery } from '../../../../graphql/generated/graphql';
+import { TenantUsersDocument, type TenantUsersQuery } from '../../../../graphql/generated/graphql';
 import { FEATURE_FLAGS } from '../../../core/tokens/feature-flags.token';
 import { TimeAgoPipe } from '../../../shared/pipes/time-ago.pipe';
 import { AiService } from '../../ai/ai.service';
@@ -32,10 +36,10 @@ import { TicketsFacade } from '../data/tickets.facade';
     TimeAgoPipe,
   ],
   template: `
-    @if (!ticket()) {
+    @if (!ticketLive()) {
       <mat-card><mat-card-content>Ticket not found.</mat-card-content></mat-card>
     } @else {
-      @let t = ticket()!;
+      @let t = ticketLive()!;
       <div class="grid">
         <div class="main">
           <mat-card appearance="outlined" class="surface-card detail-main">
@@ -52,16 +56,41 @@ import { TicketsFacade } from '../data/tickets.facade';
             </div>
             <mat-card-content class="detail-content">
               <p class="description">{{ t.description }}</p>
+              @if (t.attachments.length) {
+                <section class="attachments">
+                  <h3>Attachments</h3>
+                  <div class="attachment-chips">
+                    @for (a of t.attachments; track a.id) {
+                      <a class="attachment-chip" [href]="a.url" target="_blank" rel="noopener noreferrer">
+                        <span class="icon" aria-hidden="true">{{ attachmentIcon(a.fileName) }}</span>
+                        <span class="name">{{ a.fileName }}</span>
+                        <span class="action">Download</span>
+                      </a>
+                    }
+                  </div>
+                  <div class="image-gallery">
+                    @for (a of t.attachments; track a.id) {
+                      @if (isImageFile(a.fileName)) {
+                        <a [href]="a.url" target="_blank" rel="noopener noreferrer">
+                          <img [src]="attachmentPreviewUrl(a.id, a.url)" [alt]="a.fileName" loading="lazy" />
+                        </a>
+                      }
+                    }
+                  </div>
+                </section>
+              }
               <mat-divider />
               <h3>Assign</h3>
               <mat-form-field appearance="outline">
                 <mat-label>Assignee</mat-label>
                 <mat-select
-                  [value]="t.assigneeId ?? 'u-agent'"
+                  [value]="t.assigneeId ?? ''"
                   (selectionChange)="onAssign($event)"
                 >
-                  <mat-option value="u-agent">Alex Agent</mat-option>
-                  <mat-option value="u-manager">Morgan Manager</mat-option>
+                  <mat-option value="" disabled>Select an assignee</mat-option>
+                  @for (u of tenantUsers(); track u.id) {
+                    <mat-option [value]="u.id">{{ u.name }} · {{ u.role }}</mat-option>
+                  }
                 </mat-select>
               </mat-form-field>
               <h3>Comments</h3>
@@ -200,6 +229,52 @@ import { TicketsFacade } from '../data/tickets.facade';
         margin: 0 0 var(--space-5, 1.25rem);
         line-height: 1.6;
       }
+      .attachments {
+        margin: 0 0 var(--space-5, 1.25rem);
+      }
+      .attachment-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+      }
+      .attachment-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        text-decoration: none;
+        color: inherit;
+        border: 1px solid var(--color-border-hairline, rgba(15, 23, 42, 0.08));
+        border-radius: 999px;
+        padding: 0.3rem 0.65rem;
+        background: var(--color-surface, #fff);
+      }
+      .attachment-chip .icon {
+        font-size: 0.95rem;
+      }
+      .attachment-chip .name {
+        max-width: 220px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .attachment-chip .action {
+        font-size: 0.75rem;
+        opacity: 0.7;
+      }
+      .image-gallery {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 0.65rem;
+      }
+      .image-gallery img {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 1px solid var(--color-border-hairline, rgba(15, 23, 42, 0.08));
+        display: block;
+      }
       .grid {
         display: grid;
         grid-template-columns: 1fr 320px;
@@ -238,6 +313,11 @@ import { TicketsFacade } from '../data/tickets.facade';
 })
 export default class TicketDetailPage {
   readonly ticket = input<TicketQuery['ticket'] | null>(null);
+  readonly ticketLive = signal<TicketQuery['ticket'] | null>(null);
+
+  private readonly http = inject(HttpClient);
+  private readonly apollo = inject(Apollo);
+  private readonly destroyRef = inject(DestroyRef);
 
   private readonly facade = inject(TicketsFacade);
   private readonly router = inject(Router);
@@ -247,6 +327,9 @@ export default class TicketDetailPage {
 
   commentDraft = '';
 
+  readonly tenantUsers = signal<Array<TenantUsersQuery['tenantUsers'][number]>>([]);
+  readonly previewUrls = signal<Record<string, string>>({});
+
   readonly sumBusy = signal(false);
   readonly aiSummary = signal<{ problem: string; impact: string; nextSteps: string } | null>(null);
   readonly aiSumErr = signal<string | null>(null);
@@ -254,23 +337,83 @@ export default class TicketDetailPage {
 
   readonly aiBusy = signal(false);
 
+  constructor() {
+    void this.loadTenantUsers();
+
+    effect(
+      () => {
+        this.ticketLive.set(this.ticket());
+      },
+      { allowSignalWrites: true },
+    );
+
+    // Sync blob previews with ticket attachments. Do NOT read `previewUrls()` here without
+    // `untracked` — otherwise every `previewUrls.set/update` re-runs this effect and freezes the tab.
+    effect(
+      () => {
+        const t = this.ticketLive();
+        const attachments = t?.attachments ?? [];
+
+        untracked(() => {
+          const current = this.previewUrls();
+          const keepIds = new Set(
+            attachments.filter((a) => this.isImageFile(a.fileName)).map((a) => a.id),
+          );
+
+          const next: Record<string, string> = {};
+          for (const id of keepIds) {
+            const url = current[id];
+            if (url) next[id] = url;
+          }
+
+          for (const [id, url] of Object.entries(current)) {
+            if (!keepIds.has(id)) {
+              URL.revokeObjectURL(url);
+            }
+          }
+
+          const sameMap =
+            Object.keys(next).length === Object.keys(current).length &&
+            Object.keys(next).every((k) => next[k] === current[k]);
+          if (!sameMap) {
+            this.previewUrls.set(next);
+          }
+
+          const urls = this.previewUrls();
+          for (const a of attachments) {
+            if (!this.isImageFile(a.fileName)) continue;
+            if (!urls[a.id]) {
+              void this.fetchPreview(a.id, a.url);
+            }
+          }
+        });
+      },
+      { allowSignalWrites: true },
+    );
+
+    this.destroyRef.onDestroy(() => {
+      const cur = this.previewUrls();
+      for (const url of Object.values(cur)) URL.revokeObjectURL(url);
+    });
+  }
+
   async onAssign(ev: MatSelectChange): Promise<void> {
-    const t = this.ticket();
+    const t = this.ticketLive();
     const id = ev.value as string | null;
     if (!t) return;
     if (id) {
       await this.facade.assignTicket(t.id, id);
     }
-    await this.reload();
+    await this.refreshTicket();
   }
 
   async post(): Promise<void> {
-    const t = this.ticket();
+    const t = this.ticketLive();
     const body = this.commentDraft.trim();
     if (!t || !body) return;
     await this.facade.addComment(t.id, body);
     this.commentDraft = '';
-    await this.reload();
+    await this.refreshTicket();
   }
 
   async useAiDraft(): Promise<void> {
@@ -288,7 +431,7 @@ export default class TicketDetailPage {
   }
 
   async summarize(): Promise<void> {
-    const t = this.ticket();
+    const t = this.ticketLive();
     if (!t) return;
     this.sumAbort?.abort();
     this.sumAbort = new AbortController();
@@ -310,9 +453,67 @@ export default class TicketDetailPage {
     this.sumAbort?.abort();
   }
 
-  private async reload(): Promise<void> {
-    const t = this.ticket();
+  attachmentPreviewUrl(attachmentId: string, fallbackUrl: string): string {
+    return this.previewUrls()[attachmentId] ?? fallbackUrl;
+  }
+
+  private async fetchPreview(attachmentId: string, url: string): Promise<void> {
+    try {
+      const blob = await firstValueFrom(this.http.get(url, { responseType: 'blob' }));
+      const objectUrl = URL.createObjectURL(blob);
+      this.previewUrls.update((cur) => ({ ...cur, [attachmentId]: objectUrl }));
+    } catch {
+      // fall back to raw URL if blob fetch fails
+    }
+  }
+
+  private async loadTenantUsers(): Promise<void> {
+    try {
+      const res = await firstValueFrom(
+        this.apollo.query({
+          query: TenantUsersDocument,
+          variables: { activeOnly: true },
+          fetchPolicy: 'network-only',
+        }),
+      );
+      this.tenantUsers.set(res.data?.tenantUsers ?? []);
+    } catch {
+      this.tenantUsers.set([]);
+    }
+  }
+
+  isImageFile(fileName: string): boolean {
+    const ext = this.getExt(fileName);
+    return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(ext);
+  }
+
+  attachmentIcon(fileName: string): string {
+    const ext = this.getExt(fileName);
+    if (this.isImageFile(fileName)) return '🖼️';
+    if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) return '🎬';
+    if (['pdf'].includes(ext)) return '📄';
+    if (['doc', 'docx', 'txt', 'rtf'].includes(ext)) return '📝';
+    if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
+    if (['zip', 'rar', '7z'].includes(ext)) return '🗜️';
+    return '📎';
+  }
+
+  // private async reload(): Promise<void> {
+  //   const t = this.ticketLive();
+  //   if (!t) return;
+  //   await this.router.navigateByUrl(`/tickets/${t.id}`, { replaceUrl: true });
+  // }
+
+  private async refreshTicket(): Promise<void> {
+    const t = this.ticketLive();
     if (!t) return;
-    await this.router.navigateByUrl(`/tickets/${t.id}`, { replaceUrl: true });
+    const fresh = await this.facade.getTicket(t.id);
+    this.ticketLive.set(fresh);
+  }
+
+  private getExt(fileName: string): string {
+    const idx = fileName.lastIndexOf('.');
+    if (idx < 0) return '';
+    return fileName.slice(idx + 1).toLowerCase();
   }
 }

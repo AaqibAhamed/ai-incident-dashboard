@@ -1,5 +1,6 @@
 using AiIncident.Api.Data;
 using AiIncident.Api.Models;
+using AiIncident.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
 
@@ -7,16 +8,56 @@ namespace AiIncident.Api.GraphQL;
 
 public sealed class Query
 {
+    public async Task<MePayload?> Me(
+        [Service] AppDbContext db,
+        [Service] ICurrentUserContext ctx,
+        CancellationToken cancellationToken)
+    {
+        if (!ctx.IsAuthenticated || string.IsNullOrEmpty(ctx.UserId))
+        {
+            return null;
+        }
+
+        var user = await db.Users.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == ctx.UserId, cancellationToken);
+        if (user is null)
+        {
+            return null;
+        }
+
+        TenantGql? tenantGql = null;
+        if (user.TenantId is not null)
+        {
+            var tenant = await db.Tenants.AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == user.TenantId, cancellationToken);
+            if (tenant is not null)
+            {
+                tenantGql = new TenantGql
+                {
+                    Id = tenant.Id,
+                    Name = tenant.Name,
+                    Slug = tenant.Slug,
+                    Status = tenant.Status
+                };
+            }
+        }
+
+        return new MePayload { User = user, Tenant = tenantGql };
+    }
+
     public async Task<TicketConnection> Tickets(
         TicketFilterInput? filter,
         string? after,
         int? first,
         [Service] AppDbContext db,
+        [Service] ICurrentUserContext ctx,
         CancellationToken cancellationToken)
     {
+        var tenantId = TenantScopeGuard.RequireTenantId(ctx);
         var pageSize = first is > 0 ? first.Value : 15;
         var query = db.Tickets
             .AsNoTracking()
+            .Where(t => t.TenantId == tenantId)
             .Include(x => x.Assignee)
             .Include(x => x.Team)
             .OrderByDescending(x => x.CreatedAt)
@@ -37,23 +78,59 @@ public sealed class Query
         return new TicketConnection(edges, new PageInfo(endCursor, hasNextPage));
     }
 
-    public Task<Ticket?> Ticket(string id, [Service] AppDbContext db, CancellationToken cancellationToken) =>
-        db.Tickets
+    public async Task<Ticket?> Ticket(
+        [ID] string id,
+        [Service] AppDbContext db,
+        [Service] ICurrentUserContext ctx,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = TenantScopeGuard.RequireTenantId(ctx);
+        return await db.Tickets
             .AsNoTracking()
+            .Where(t => t.TenantId == tenantId && t.Id == id)
             .Include(x => x.Assignee)
             .Include(x => x.Requester)
             .Include(x => x.Team)
             .Include(x => x.Comments).ThenInclude(x => x.Author)
             .Include(x => x.History)
             .Include(x => x.Attachments)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<List<User>> TenantUsers(
+        bool activeOnly,
+        [Service] AppDbContext db,
+        [Service] ICurrentUserContext ctx,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = TenantScopeGuard.RequireTenantId(ctx);
+        TenantScopeGuard.RequireUserId(ctx);
+
+        var query = db.Users
+            .AsNoTracking()
+            .Where(u => u.TenantId == tenantId);
+        if (activeOnly)
+        {
+            query = query.Where(u => u.IsActive);
+        }
+
+        // Only return assignable tenant users (exclude super admins implicitly by tenant scope).
+        return await query
+            .OrderBy(u => u.Name)
+            .ToListAsync(cancellationToken);
+    }
 
     public async Task<DashboardMetrics> DashboardMetrics(
         string range,
         [Service] AppDbContext db,
+        [Service] ICurrentUserContext ctx,
         CancellationToken cancellationToken)
     {
-        var tickets = await db.Tickets.AsNoTracking().Include(x => x.Team).ToListAsync(cancellationToken);
+        var tenantId = TenantScopeGuard.RequireTenantId(ctx);
+        var tickets = await db.Tickets.AsNoTracking()
+            .Where(t => t.TenantId == tenantId)
+            .Include(x => x.Team)
+            .ToListAsync(cancellationToken);
         _ = range;
 
         var openCount = tickets.Count(x => x.Status is TicketStatus.OPEN or TicketStatus.IN_PROGRESS);

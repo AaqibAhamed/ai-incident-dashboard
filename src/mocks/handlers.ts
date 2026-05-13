@@ -1,8 +1,20 @@
 import { http, HttpResponse } from 'msw';
-import type { Ticket, UserRole } from '../graphql/generated/graphql';
-import { ALL_TICKETS, metricsFor, MOCK_USERS } from './fixtures/seed';
+import type { Ticket, User, UserRole } from '../graphql/generated/graphql';
+import { ALL_TICKETS, metricsFor, MOCK_TENANT, MOCK_USERS } from './fixtures/seed';
+
+let mockSessionUser: User = MOCK_USERS.find((u) => u.role === 'MANAGER') ?? MOCK_USERS[0]!;
+let mockSessionTenant: typeof MOCK_TENANT | null = MOCK_TENANT;
 
 let ticketDb: Ticket[] = JSON.parse(JSON.stringify(ALL_TICKETS)) as Ticket[];
+let uploadDb: Array<{
+  id: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedByUserId: string;
+  uploadedAt: string;
+  url: string;
+}> = [];
 
 const encodeCursor = (i: number): string => btoa(`c:${i}`);
 const decodeCursor = (c: string | null | undefined): number => {
@@ -32,9 +44,7 @@ function filterList(filter: Record<string, unknown> | undefined | null): Ticket[
   if (slaBreaching) list = list.filter((t) => t.slaBreached);
   if (search) {
     list = list.filter(
-      (t) =>
-        t.title.toLowerCase().includes(search) ||
-        t.description.toLowerCase().includes(search),
+      (t) => t.title.toLowerCase().includes(search) || t.description.toLowerCase().includes(search),
     );
   }
   return list;
@@ -55,6 +65,27 @@ function listNode(t: Ticket) {
   };
 }
 
+const platformTenantListRow = {
+  id: MOCK_TENANT.id,
+  name: MOCK_TENANT.name,
+  slug: MOCK_TENANT.slug,
+  status: MOCK_TENANT.status,
+  createdAt: new Date().toISOString(),
+  primaryDomain: 'example.com',
+  tenantAdmin: {
+    id: 'u-tenant-admin',
+    name: 'Taylor Tenant Admin',
+    email: 'admin@example.com',
+    isActive: true,
+  },
+};
+
+const platformTenantDetail = {
+  ...platformTenantListRow,
+  domains: [{ domain: 'example.com', isPrimary: true }],
+  tenantAdmin: platformTenantListRow.tenantAdmin,
+};
+
 export const handlers = [
   http.post('/graphql', async ({ request }) => {
     const body = (await request.json()) as {
@@ -65,6 +96,16 @@ export const handlers = [
     const v = body.variables ?? {};
 
     switch (op) {
+      case 'Me': {
+        return HttpResponse.json({
+          data: {
+            me: {
+              user: mockSessionUser,
+              tenant: mockSessionTenant,
+            },
+          },
+        });
+      }
       case 'Tickets': {
         const filtered = filterList(v['filter'] as Record<string, unknown> | null);
         const after = v['after'] as string | null | undefined;
@@ -170,6 +211,8 @@ export const handlers = [
           description: string;
           priority: Ticket['priority'];
           category: string;
+          tags?: string[];
+          attachmentIds?: string[];
         };
         const id = `t-${ticketDb.length + 1}`;
         const nt = JSON.parse(JSON.stringify(ALL_TICKETS[0])) as Ticket;
@@ -178,9 +221,23 @@ export const handlers = [
         nt.description = input.description;
         nt.priority = input.priority;
         nt.category = input.category;
+        nt.tags = input.tags?.length ? input.tags : nt.tags;
         nt.status = 'OPEN';
         nt.createdAt = new Date().toISOString();
         nt.updatedAt = nt.createdAt;
+        nt.attachments = (input.attachmentIds ?? [])
+          .map((assetId) => {
+            const asset = uploadDb.find((a) => a.id === assetId);
+            if (!asset) return null;
+            return {
+              __typename: 'Attachment' as const,
+              id: asset.id,
+              fileName: asset.fileName,
+              url: asset.url,
+              uploadedAt: asset.uploadedAt,
+            };
+          })
+          .filter((value): value is NonNullable<typeof value> => !!value);
         ticketDb = [nt, ...ticketDb];
         return HttpResponse.json({
           data: { createTicket: { id, title: nt.title, status: nt.status, priority: nt.priority } },
@@ -195,18 +252,26 @@ export const handlers = [
   }),
 
   http.post('/api/auth/login', async ({ request }) => {
-    const body = (await request.json()) as { email: string; password: string; role: UserRole };
-    const template = MOCK_USERS.find((u) => u.role === body.role) ?? MOCK_USERS[0]!;
-    const user = {
-      id: template.id,
-      name: template.name,
-      email: body.email || template.email,
-      role: body.role,
-    };
+    const body = (await request.json()) as { email: string; password: string };
+    const email = (body.email ?? '').trim().toLowerCase();
+    if (email === 'super@ai-platform.internal') {
+      mockSessionUser = {
+        __typename: 'User',
+        id: 'u-super-admin',
+        name: 'Platform Super Admin',
+        email,
+        role: 'SUPER_ADMIN' as UserRole,
+      };
+      mockSessionTenant = null;
+    } else {
+      mockSessionUser = MOCK_USERS.find((u) => u.email === email) ?? MOCK_USERS[2]!;
+      mockSessionTenant = MOCK_TENANT;
+    }
     return HttpResponse.json({
-      accessToken: `mock.${body.role.toLowerCase()}.token`,
+      accessToken: `mock.${mockSessionUser.role.toLowerCase()}.token`,
       refreshToken: 'mock-refresh',
-      user,
+      user: mockSessionUser,
+      tenant: mockSessionTenant,
     });
   }),
 
@@ -216,13 +281,85 @@ export const handlers = [
     return HttpResponse.json({
       accessToken: 'mock.refreshed',
       refreshToken: 'mock-refresh',
-      user: MOCK_USERS[0],
+      user: mockSessionUser,
+      tenant: mockSessionTenant,
     });
   }),
 
-  http.post('/api/upload', async () =>
-    HttpResponse.json({ id: `file-${Date.now()}`, url: '/api/files/upload.bin' }),
+  http.get('/api/platform/tenants', () =>
+    HttpResponse.json({
+      live: [platformTenantListRow],
+      deleted: [] as typeof platformTenantListRow[],
+    }),
   ),
+
+  http.get('/api/platform/tenants/:tenantId', ({ params }) => {
+    if (params['tenantId'] !== MOCK_TENANT.id) {
+      return HttpResponse.json({ message: 'Not found' }, { status: 404 });
+    }
+    return HttpResponse.json(platformTenantDetail);
+  }),
+
+  http.post('/api/platform/tenants', async () =>
+    HttpResponse.json({
+      tenant: { id: 'tenant-mock', name: 'Mock', slug: 'mock' },
+      primaryDomain: 'mock.example',
+      tenantAdmin: { id: 'u-mock', name: 'Mock Admin', email: 'admin@mock.example' },
+    }),
+  ),
+
+  http.patch('/api/platform/tenants/:tenantId', async () => HttpResponse.json({ ok: true })),
+
+  http.patch('/api/platform/tenants/:tenantId/tenant-admins/:userId', async () =>
+    HttpResponse.json({ ok: true }),
+  ),
+
+  http.patch('/api/platform/tenants/:tenantId/delete', async () => HttpResponse.json({ ok: true })),
+
+  http.patch('/api/platform/tenants/:tenantId/suspend', async () => HttpResponse.json({ ok: true })),
+
+  http.patch('/api/platform/tenants/:tenantId/resume', async () => HttpResponse.json({ ok: true })),
+
+  http.patch('/api/platform/tenants/:tenantId/restore', async () => HttpResponse.json({ ok: true })),
+
+  http.get('/api/tenant/users', () =>
+    HttpResponse.json({
+      primaryEmailDomain: 'example.com',
+      users: MOCK_USERS.map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        isActive: true,
+      })),
+    }),
+  ),
+
+  http.post('/api/tenant/users', async () => HttpResponse.json({ ok: true })),
+
+  http.patch('/api/tenant/users/:userId', async () => HttpResponse.json({ ok: true })),
+
+  http.post('/api/upload', async ({ request }) => {
+    const form = await request.formData();
+    const files = form.getAll('files');
+    const uploaded = files
+      .map((value, index) => {
+        if (!(value instanceof File)) return null;
+        const id = `file-${Date.now()}-${index}`;
+        return {
+          id,
+          fileName: value.name,
+          contentType: value.type || 'application/octet-stream',
+          sizeBytes: value.size,
+          uploadedByUserId: 'u-agent',
+          uploadedAt: new Date().toISOString(),
+          url: `/api/files/${id}`,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => !!item);
+    uploadDb = [...uploadDb, ...uploaded];
+    return HttpResponse.json({ files: uploaded });
+  }),
 
   http.post('/api/ai/summary', async () =>
     HttpResponse.json({

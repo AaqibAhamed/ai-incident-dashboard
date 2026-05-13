@@ -5,8 +5,6 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
-import type { UserRole } from '../../../graphql/generated/graphql';
 import { AuthStore, type LoginCredentials } from '../../core/auth/auth.store';
 
 @Component({
@@ -17,14 +15,13 @@ import { AuthStore, type LoginCredentials } from '../../core/auth/auth.store';
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
-    MatSelectModule,
     MatButtonModule,
   ],
   template: `
     <div class="wrap">
       <mat-card appearance="outlined" class="card">
-        <mat-card-title>Sign in (demo)</mat-card-title>
-        <mat-card-subtitle>Choose a role — credentials are mocked via MSW</mat-card-subtitle>
+        <mat-card-title>Sign in</mat-card-title>
+        <mat-card-subtitle> Tenant is resolved from your work email domain. </mat-card-subtitle>
         <mat-card-content>
           <form [formGroup]="form" (ngSubmit)="onSubmit()">
             <mat-form-field appearance="outline" class="full">
@@ -33,24 +30,24 @@ import { AuthStore, type LoginCredentials } from '../../core/auth/auth.store';
             </mat-form-field>
             <mat-form-field appearance="outline" class="full">
               <mat-label>Password</mat-label>
-              <input matInput type="password" formControlName="password" autocomplete="current-password" />
+              <input
+                matInput
+                type="password"
+                formControlName="password"
+                autocomplete="current-password"
+              />
             </mat-form-field>
-            <mat-form-field appearance="outline" class="full">
-              <mat-label>Role</mat-label>
-              <mat-select formControlName="role">
-                <mat-option value="AGENT">Agent</mat-option>
-                <mat-option value="MANAGER">Manager</mat-option>
-                <mat-option value="REQUESTER">Requester</mat-option>
-              </mat-select>
-            </mat-form-field>
-            <button mat-flat-button color="primary" type="submit" [disabled]="form.invalid || busy()">
+            <button
+              mat-flat-button
+              color="primary"
+              type="submit"
+              [disabled]="form.invalid || busy()"
+            >
               Continue
             </button>
           </form>
         </mat-card-content>
-        <mat-card-footer class="foot">
-          <span>PII and prompts stay on the server in production — see README.</span>
-        </mat-card-footer>
+        <mat-card-footer class="foot"> </mat-card-footer>
       </mat-card>
     </div>
   `,
@@ -63,7 +60,7 @@ import { AuthStore, type LoginCredentials } from '../../core/auth/auth.store';
         padding: 1rem;
       }
       .card {
-        width: min(420px, 100%);
+        width: min(460px, 100%);
       }
       .full {
         width: 100%;
@@ -74,6 +71,9 @@ import { AuthStore, type LoginCredentials } from '../../core/auth/auth.store';
         padding: 0.75rem 1rem 1rem;
         font-size: 0.75rem;
         opacity: 0.75;
+      }
+      code {
+        font-size: 0.85em;
       }
     `,
   ],
@@ -86,9 +86,8 @@ export default class LoginPage {
   readonly busy = signal(false);
 
   readonly form = this.fb.nonNullable.group({
-    email: ['agent@demo.local', [Validators.required, Validators.email]],
-    password: ['demo', Validators.required],
-    role: this.fb.nonNullable.control<UserRole>('AGENT', Validators.required),
+    email: ['name@example.com', [Validators.required, Validators.email]],
+    password: ['', Validators.required],
   });
 
   async onSubmit(): Promise<void> {

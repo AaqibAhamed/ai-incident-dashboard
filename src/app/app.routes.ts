@@ -23,13 +23,23 @@ export const routes: Routes = [
         loadComponent: () => import('./features/home/blank.page'),
       },
       {
+        path: 'platform/tenants',
+        canMatch: [roleGuard(['SUPER_ADMIN'])],
+        loadComponent: () => import('./features/platform/pages/platform-tenants.page'),
+      },
+      {
+        path: 'tenant/users',
+        canMatch: [roleGuard(['TENANT_ADMIN'])],
+        loadComponent: () => import('./features/tenant-admin/pages/tenant-users.page'),
+      },
+      {
         path: 'dashboard',
-        canMatch: [roleGuard(['MANAGER'])],
+        canMatch: [roleGuard(['MANAGER', 'TENANT_ADMIN'])],
         loadComponent: () => import('./features/dashboard/pages/dashboard.page'),
       },
       {
         path: 'tickets',
-        canMatch: [roleGuard(['MANAGER', 'AGENT'])],
+        canMatch: [roleGuard(['MANAGER', 'AGENT', 'TENANT_ADMIN'])],
         loadComponent: () => import('./features/tickets/pages/tickets-list.page'),
       },
       {

@@ -1,7 +1,9 @@
 using AiIncident.Api.Data;
 using AiIncident.Api.GraphQL;
 using AiIncident.Api.Services;
+using HotChocolate.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text.Json.Serialization;
@@ -53,14 +55,24 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireAuthenticatedUser()
+        .Build();
+});
 
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
+builder.Services.AddScoped<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IAiAssistant, StubAiAssistant>();
-builder.Services.AddSingleton<IRefreshTokenStore, InMemoryRefreshTokenStore>();
+builder.Services.AddScoped<IRefreshTokenStore, DbRefreshTokenStore>();
 
 builder.Services
     .AddGraphQLServer()
+    .AddAuthorization()
     .AddQueryType<Query>()
     .AddMutationType<Mutation>();
 
@@ -75,14 +87,20 @@ app.UseCors("frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
-using (var scope = app.Services.CreateScope())
+if (!app.Environment.IsEnvironment("Test"))
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.EnsureCreated();
-    AppSeeder.Seed(db);
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        db.Database.EnsureCreated();
+        AppSeeder.Seed(db, hasher);
+    }
 }
 
 app.MapControllers();
-app.MapGraphQL("/graphql");
+app.MapGraphQL("/graphql").RequireAuthorization();
 
 app.Run();
+
+public partial class Program;
