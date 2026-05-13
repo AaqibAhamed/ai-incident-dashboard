@@ -9,7 +9,7 @@ export const routes: Routes = [
   {
     path: 'login',
     canMatch: [guestGuard],
-    loadComponent: () => import('./features/auth/login.page'),
+    loadComponent: () => import('./features/login/login.component').then((m) => m.LoginComponent),
   },
   {
     path: '',
