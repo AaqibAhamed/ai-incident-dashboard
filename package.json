@@ -9,7 +9,7 @@
     "dev:full": "concurrently -n api,web -c blue,green \"npm run dev:api\" \"npm run dev:web\"",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test",
+    "test": "npx vitest run",
     "test:ci": "ng test --no-watch",
     "codegen": "graphql-codegen --config codegen.ts",
     "lint": "ng lint",
