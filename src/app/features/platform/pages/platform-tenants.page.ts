@@ -86,32 +86,35 @@ const emailLocalPartPattern = /^(?:[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9])$/i;
     MatSnackBarModule,
   ],
   template: `
-    <h1>Platform — tenants</h1>
-    <p class="sub">
-      Create organizations and map a sign-in domain. The first tenant administrator is created
-      automatically using the primary domain and admin display name.
-    </p>
+    <div class="page-header">
+      <h1>Platform Tenants</h1>
+      <p class="sub">
+        Create organizations and map a sign-in domain. The first tenant administrator is created
+        automatically using the primary domain and admin display name.
+      </p>
+    </div>
 
     <mat-card appearance="outlined" class="card">
-      <mat-card-title>Create tenant</mat-card-title>
+      <mat-card-title>Register New Tenant</mat-card-title>
       <mat-card-content>
         <form [formGroup]="createForm" (ngSubmit)="createTenant()" class="form-column">
-          <div class="form-row">
+          <div class="form-grid">
             <mat-form-field appearance="outline">
               <mat-label>Organization name</mat-label>
-              <input matInput formControlName="name" />
+              <input matInput formControlName="name" placeholder="e.g. Acme Corp" />
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Slug</mat-label>
-              <input matInput formControlName="slug" />
+              <input matInput formControlName="slug" placeholder="acme-corp" />
             </mat-form-field>
-            <mat-form-field appearance="outline" class="grow">
+            <mat-form-field appearance="outline">
               <mat-label>Primary email domain</mat-label>
               <input matInput formControlName="primaryEmailDomain" placeholder="acme.com" />
             </mat-form-field>
           </div>
-          <p class="section-label">Tenant administrator</p>
-          <div class="form-row">
+
+          <p class="section-label">Default Administrator</p>
+          <div class="form-grid">
             <mat-form-field appearance="outline">
               <mat-label>Admin display name</mat-label>
               <input matInput formControlName="tenantAdminName" />
@@ -121,33 +124,37 @@ const emailLocalPartPattern = /^(?:[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9])$/i;
               <input matInput type="password" formControlName="tenantAdminPassword" />
             </mat-form-field>
           </div>
-          <p class="preview" [class.preview-muted]="!adminEmailPreview()">
-            <span class="preview-label">Admin sign-in email will be:</span>
-            {{ adminEmailPreview() }}
-          </p>
-          <p class="hint">
-            If that address is already in use, a numeric suffix is added automatically (e.g.
-            jane.doe-1).
-          </p>
-          <button
-            mat-flat-button
-            color="primary"
-            type="submit"
-            [disabled]="createForm.invalid || busy()"
-          >
-            Create
-          </button>
+
+          <div class="preview-box" [class.preview-muted]="!adminEmailPreview()">
+            <span class="preview-label">Admin sign-in email will be</span>
+            <span class="preview-value">{{ adminEmailPreview() }}</span>
+            <p class="hint">
+              If that address is already in use, a numeric suffix is added automatically (e.g.
+              jane.doe-1).
+            </p>
+          </div>
+
+          <div class="actions">
+            <button
+              mat-flat-button
+              color="primary"
+              type="submit"
+              [disabled]="createForm.invalid || busy()"
+            >
+              Create Tenant
+            </button>
+          </div>
         </form>
       </mat-card-content>
     </mat-card>
 
     <mat-card appearance="outlined" class="card">
-      <mat-card-title>Active &amp; suspended tenants</mat-card-title>
+      <mat-card-title>Active &amp; Suspended Tenants</mat-card-title>
       <mat-card-content>
         @if (loading()) {
-          <p>Loading…</p>
+          <p class="panel-loading">Loading tenants...</p>
         } @else if (!liveTenants().length) {
-          <p>No active or suspended tenants.</p>
+          <p class="muted">No active or suspended tenants found.</p>
         } @else {
           <ul class="list">
             @for (t of liveTenants(); track t.id) {
@@ -157,42 +164,52 @@ const emailLocalPartPattern = /^(?:[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9])$/i;
                     <div>
                       <strong>{{ t.name }}</strong>
                       <span class="meta">
-                        {{ t.slug }} · {{ t.status }}
+                        {{ t.slug }}
+                        <span
+                          class="status-badge"
+                          [class.active]="t.status === 'Active'"
+                          [class.suspended]="t.status === 'Suspended'"
+                        >
+                          {{ t.status }}
+                        </span>
                         @if (t.primaryDomain) {
                           · {{ t.primaryDomain }}
                         }
                       </span>
                     </div>
                     @if (t.tenantAdmin) {
-                      <div class="admin-line">
-                        Admin: {{ t.tenantAdmin.name }} · {{ t.tenantAdmin.email }}
+                      <div class="admin-info">
+                        <span class="admin-label">Admin:</span> {{ t.tenantAdmin.name }} ·
+                        {{ t.tenantAdmin.email }}
                         @if (!t.tenantAdmin.isActive) {
                           <span class="inactive">(inactive)</span>
                         }
                       </div>
                     } @else {
-                      <div class="admin-line muted">No tenant admin on record</div>
+                      <div class="admin-info muted">No tenant admin on record</div>
                     }
                   </div>
                   <span class="actions">
                     <button mat-button type="button" (click)="toggleExpand(t.id)">
-                      {{ expandedTenantId() === t.id ? 'Close' : 'View / edit' }}
+                      {{ expandedTenantId() === t.id ? 'Close' : 'View / Edit' }}
                     </button>
                     @if (t.status === 'Active') {
                       <button mat-button type="button" (click)="suspendTenant(t.id)">
                         Suspend
                       </button>
-                    }
-                    @if (t.status === 'Suspended') {
+                    } @else if (t.status === 'Suspended') {
                       <button mat-button type="button" (click)="resumeTenant(t.id)">Resume</button>
                     }
-                    <button mat-button type="button" (click)="softDelete(t.id)">Delete</button>
+                    <button mat-button color="warn" type="button" (click)="softDelete(t.id)">
+                      Delete
+                    </button>
                   </span>
                 </div>
+
                 @if (expandedTenantId() === t.id) {
                   <div class="expand-panel">
                     @if (editLoading()) {
-                      <p class="panel-loading">Loading…</p>
+                      <p class="panel-loading">Loading details...</p>
                     } @else if (editDetail(); as detail) {
                       @if (detail.id === t.id) {
                         <ng-container *ngTemplateOutlet="tenantEditPanel"></ng-container>
@@ -208,12 +225,12 @@ const emailLocalPartPattern = /^(?:[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9])$/i;
     </mat-card>
 
     <mat-card appearance="outlined" class="card deleted-card">
-      <mat-card-title>Deleted tenants</mat-card-title>
+      <mat-card-title>Deleted Tenants</mat-card-title>
       <mat-card-content>
         @if (loading()) {
-          <p>Loading…</p>
+          <p class="panel-loading">Loading...</p>
         } @else if (!deletedTenants().length) {
-          <p>No deleted tenants.</p>
+          <p class="muted">No deleted tenants.</p>
         } @else {
           <ul class="list">
             @for (t of deletedTenants(); track t.id) {
@@ -222,24 +239,12 @@ const emailLocalPartPattern = /^(?:[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9])$/i;
                   <div class="row-main">
                     <div>
                       <strong>{{ t.name }}</strong>
-                      <span class="meta">
-                        {{ t.slug }} · {{ t.status }}
-                        @if (t.primaryDomain) {
-                          · {{ t.primaryDomain }}
-                        }
-                      </span>
+                      <span class="meta">{{ t.slug }} · {{ t.status }}</span>
                     </div>
-                    @if (t.tenantAdmin) {
-                      <div class="admin-line">
-                        Admin: {{ t.tenantAdmin.name }} · {{ t.tenantAdmin.email }}
-                      </div>
-                    } @else {
-                      <div class="admin-line muted">No tenant admin on record</div>
-                    }
                   </div>
                   <span class="actions">
                     <button mat-button type="button" (click)="toggleExpand(t.id)">
-                      {{ expandedTenantId() === t.id ? 'Close' : 'View / edit' }}
+                      {{ expandedTenantId() === t.id ? 'Close' : 'Details' }}
                     </button>
                     <button
                       mat-flat-button
@@ -247,19 +252,13 @@ const emailLocalPartPattern = /^(?:[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9])$/i;
                       type="button"
                       (click)="restoreTenant(t.id)"
                     >
-                      Restore to active
+                      Restore Tenant
                     </button>
                   </span>
                 </div>
                 @if (expandedTenantId() === t.id) {
                   <div class="expand-panel">
-                    @if (editLoading()) {
-                      <p class="panel-loading">Loading…</p>
-                    } @else if (editDetail(); as detail) {
-                      @if (detail.id === t.id) {
-                        <ng-container *ngTemplateOutlet="tenantEditPanel"></ng-container>
-                      }
-                    }
+                    <ng-container *ngTemplateOutlet="tenantEditPanel"></ng-container>
                   </div>
                 }
               </li>
@@ -271,12 +270,11 @@ const emailLocalPartPattern = /^(?:[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9])$/i;
 
     <ng-template #tenantEditPanel>
       @if (editDetail(); as detail) {
-        <p class="status-pill">Status: {{ detail.status }}</p>
         <form [formGroup]="editForm" (ngSubmit)="saveEdit()" class="form-column">
-          <p class="section-label">Organization</p>
-          <div class="form-row">
+          <p class="section-label">Organization Settings</p>
+          <div class="form-grid">
             <mat-form-field appearance="outline">
-              <mat-label>Name</mat-label>
+              <mat-label>Organization Name</mat-label>
               <input matInput formControlName="tenantName" />
             </mat-form-field>
             <mat-form-field appearance="outline">
@@ -284,41 +282,41 @@ const emailLocalPartPattern = /^(?:[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9])$/i;
               <input matInput formControlName="tenantSlug" />
             </mat-form-field>
           </div>
+
           @if (detail.domains.length) {
-            <p class="domains">
-              Domains:
+            <div class="domains-row">
+              <span class="admin-label">Registered Domains:</span>
               @for (d of detail.domains; track d.domain) {
                 <span class="domain-pill">{{ d.domain }}{{ d.isPrimary ? ' (primary)' : '' }}</span>
               }
-            </p>
+            </div>
           }
+
           @if (detail.tenantAdmin; as admin) {
-            <p class="section-label">Default tenant admin</p>
+            <p class="section-label">Tenant Administrator</p>
             <div class="email-local-row">
-              <mat-form-field appearance="outline" class="email-local-field">
+              <mat-form-field appearance="outline" class="grow">
                 <mat-label>Sign-in email (local part)</mat-label>
                 <input matInput formControlName="adminEmailLocalPart" autocomplete="off" />
                 @if (
                   editForm.get('adminEmailLocalPart')?.invalid &&
                   editForm.get('adminEmailLocalPart')?.touched
                 ) {
-                  <mat-error
-                    >Use letters, digits, dots, hyphens, underscores; no leading/trailing
-                    dots.</mat-error
-                  >
+                  <mat-error>Invalid format (e.g. use letters, digits, dots, hyphens).</mat-error>
                 }
               </mat-form-field>
               <span class="email-at-suffix" title="Domain is fixed for this tenant">{{
                 adminDomainSuffix()
               }}</span>
             </div>
-            <div class="form-row">
+
+            <div class="form-grid">
               <mat-form-field appearance="outline">
-                <mat-label>Display name</mat-label>
+                <mat-label>Display Name</mat-label>
                 <input matInput formControlName="adminName" />
               </mat-form-field>
-              <mat-form-field appearance="outline" class="grow">
-                <mat-label>New password</mat-label>
+              <mat-form-field appearance="outline">
+                <mat-label>Update Password</mat-label>
                 <input
                   matInput
                   type="password"
@@ -330,6 +328,7 @@ const emailLocalPartPattern = /^(?:[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9])$/i;
           } @else {
             <p class="muted">This tenant has no tenant admin in the system.</p>
           }
+
           <div class="edit-actions">
             <button mat-button type="button" (click)="collapseEdit()">Cancel</button>
             <button
@@ -338,7 +337,7 @@ const emailLocalPartPattern = /^(?:[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9])$/i;
               type="submit"
               [disabled]="editForm.invalid || editBusy()"
             >
-              Save changes
+              Save Changes
             </button>
           </div>
         </form>
@@ -347,161 +346,216 @@ const emailLocalPartPattern = /^(?:[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9])$/i;
   `,
   styles: [
     `
-      .sub {
-        opacity: 0.75;
-        margin-bottom: 1rem;
+      :host {
+        display: block;
+        padding-top: var(--space-6);
       }
+
+      .page-header {
+        margin-bottom: var(--space-8);
+
+        h1 {
+          margin-bottom: var(--space-1);
+          letter-spacing: -0.03em;
+        }
+
+        .sub {
+          color: var(--color-text-secondary);
+          font-size: 1rem;
+          max-width: 600px;
+        }
+      }
+
       .card {
-        margin-bottom: 1rem;
-        max-width: 840px;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border-hairline);
+        border-radius: var(--radius-md);
+        box-shadow: var(--color-shadow-soft);
+        margin-bottom: var(--space-6);
+        max-width: 960px;
+        overflow: hidden;
+
+        mat-card-title {
+          padding: var(--space-5) var(--space-6);
+          font-size: 1.1rem;
+          font-weight: 600;
+          border-bottom: 1px solid var(--color-border-soft);
+          margin-bottom: 0;
+        }
+
+        mat-card-content {
+          padding: var(--space-6);
+        }
       }
-      .deleted-card {
-        opacity: 0.95;
-      }
+
       .form-column {
         display: flex;
         flex-direction: column;
-        gap: 0.5rem;
-        align-items: flex-start;
+        gap: var(--space-4);
       }
-      .form-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem;
-        align-items: flex-start;
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: var(--space-4);
         width: 100%;
       }
-      .grow {
-        flex: 1;
-        min-width: 180px;
-      }
+
       .section-label {
         font-size: 0.75rem;
-        font-weight: 600;
+        font-weight: 700;
+        color: var(--color-primary);
         text-transform: uppercase;
-        letter-spacing: 0.04em;
-        margin: 0.5rem 0 0;
-        opacity: 0.7;
+        letter-spacing: 0.05em;
+        margin: var(--space-4) 0 0;
       }
-      .preview {
-        font-size: 0.9rem;
-        margin: 0.25rem 0 0;
-        line-height: 1.4;
-      }
-      .preview-muted {
-        opacity: 0.55;
-      }
-      .preview-label {
-        display: block;
-        font-size: 0.72rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        opacity: 0.65;
-        margin-bottom: 0.15rem;
-      }
-      .hint {
-        font-size: 0.8rem;
-        opacity: 0.65;
-        margin: 0 0 0.25rem;
-      }
-      .status-pill {
-        font-size: 0.875rem;
-        margin: 0 0 0.75rem;
-        opacity: 0.85;
-      }
+
+      /* Tenant List Styling */
       .list {
         list-style: none;
         padding: 0;
         margin: 0;
       }
+
       .tenant-block {
-        border-bottom: 1px solid var(--color-border-hairline, rgba(15, 23, 42, 0.08));
-        padding: 0.75rem 0;
+        border-bottom: 1px solid var(--color-border-soft);
+        padding: var(--space-4) 0;
+        transition: background-color 0.2s ease;
+
+        &:last-child {
+          border-bottom: none;
+        }
       }
+
       .tenant-row {
         display: flex;
-        flex-wrap: wrap;
-        align-items: flex-start;
-        gap: 0.5rem;
-      }
-      .row-main {
-        flex: 1;
-        min-width: 200px;
-      }
-      .meta {
-        display: block;
-        font-size: 0.875rem;
-        opacity: 0.75;
-        margin-top: 0.15rem;
-      }
-      .admin-line {
-        font-size: 0.875rem;
-        margin-top: 0.35rem;
-      }
-      .admin-line.muted {
-        opacity: 0.65;
-      }
-      .inactive {
-        color: var(--mat-sys-error, #b3261e);
-        margin-left: 0.25rem;
-      }
-      .actions {
-        margin-left: auto;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.25rem;
         align-items: center;
+        justify-content: space-between;
+        gap: var(--space-4);
       }
-      .expand-panel {
-        margin-top: 0.75rem;
-        padding: 1rem 0.75rem 0.25rem;
-        border-radius: 8px;
-        background: var(--mat-sys-surface-container-low, rgba(15, 23, 42, 0.04));
-        border: 1px solid var(--color-border-hairline, rgba(15, 23, 42, 0.1));
-      }
-      .panel-loading {
-        margin: 0;
-        opacity: 0.8;
-      }
-      .domains {
-        font-size: 0.875rem;
-        margin: 0 0 0.5rem;
-        opacity: 0.85;
-      }
-      .domain-pill {
-        display: inline-block;
-        margin: 0.15rem 0.35rem 0 0;
-        padding: 0.1rem 0.45rem;
-        border-radius: 999px;
-        background: var(--mat-sys-surface-container, rgba(15, 23, 42, 0.06));
-        font-size: 0.8rem;
-      }
-      .edit-actions {
+
+      .row-main {
         display: flex;
-        gap: 0.5rem;
-        margin-top: 0.5rem;
+        flex-direction: column;
+        gap: 2px;
+
+        strong {
+          font-size: 1rem;
+          color: var(--color-text-primary);
+        }
+
+        .meta {
+          font-size: 0.85rem;
+          // color: var(--color-text-primary);
+          display: flex;
+          align-items: center;
+          gap: var(--space-2);
+        }
       }
-      .muted {
-        opacity: 0.7;
+
+      .admin-info {
+        margin-top: var(--space-2);
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        color: var(--color-text-secondary);
+
+        .admin-label {
+          font-weight: 500;
+          color: var(--color-text-muted);
+        }
       }
+
+      .status-badge {
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 4px;
+        text-transform: uppercase;
+        background: var(--color-surface-muted);
+        color: var(--color-text-secondary);
+
+        &.active {
+          background: #dcfce7;
+          color: #166534;
+        }
+        &.suspended {
+          background: #fee2e2;
+          color: #991b1b;
+        }
+      }
+
+      /* Preview Area */
+      .preview-box {
+        background: var(--color-surface-muted);
+        padding: var(--space-4);
+        border-radius: var(--radius-sm);
+        border-left: 4px solid var(--color-primary);
+
+        .preview-label {
+          font-size: 0.7rem;
+          font-weight: 600;
+          color: var(--color-text-muted);
+          text-transform: uppercase;
+          margin-bottom: 4px;
+          display: block;
+        }
+
+        .preview-value {
+          font-family: monospace;
+          font-size: 1rem;
+          color: var(--color-primary);
+        }
+      }
+
+      .hint {
+        font-size: 0.8rem;
+        color: var(--color-text-subtle);
+        font-style: italic;
+      }
+
+      .actions {
+        display: flex;
+        gap: var(--space-1);
+      }
+
+      .expand-panel {
+        margin-top: var(--space-4);
+        padding: var(--space-5);
+        background: var(--color-surface-elevated);
+        border: 1px solid var(--color-border-hairline);
+        border-radius: var(--radius-md);
+      }
+
       .email-local-row {
         display: flex;
-        flex-wrap: wrap;
+        align-items: baseline;
+        gap: var(--space-2);
+
+        .email-at-suffix {
+          font-weight: 600;
+          color: var(--color-text-muted);
+          font-size: 1.1rem;
+        }
+      }
+
+      .domain-pill {
+        display: inline-flex;
         align-items: center;
-        gap: 0.35rem 0.75rem;
-        width: 100%;
+        background: var(--color-primary-soft);
+        color: var(--color-primary);
+        padding: 2px 10px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-right: var(--space-2);
       }
-      .email-local-field {
-        flex: 1;
-        min-width: 160px;
-        max-width: 280px;
-      }
-      .email-at-suffix {
-        font-size: 0.95rem;
-        font-weight: 500;
-        opacity: 0.85;
-        padding-top: 0.25rem;
+
+      button[mat-flat-button] {
+        padding: 0 var(--space-6);
+        height: 44px;
+        font-weight: 600;
       }
     `,
   ],
