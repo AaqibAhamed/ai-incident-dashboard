@@ -40,7 +40,7 @@ a.active {
   font-size: 0.95rem;
   font-weight: 500;
   letter-spacing: -0.01em;
-  color: rgba(15, 23, 42, 0.75);
+  color: var(--color-text-secondary);
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -52,10 +52,7 @@ a.active {
   padding: 0.15rem 0.5rem;
   border-radius: var(--radius-sm, 8px);
   background: var(--color-border-soft, rgba(15, 23, 42, 0.06));
-  color: rgba(15, 23, 42, 0.65);
-}
-:host-context(.app-dark-theme) .topbar-title {
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--color-text-secondary);
 }
 .spacer {
   flex: 1;

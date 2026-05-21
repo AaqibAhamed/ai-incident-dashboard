@@ -1,0 +1,161 @@
+:root {
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  /* Brand */
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-soft: #dbeafe;
+  --color-accent: #3b82f6;
+
+  /* Layout */
+  --color-navbar: #0f172a;
+  --color-sidebar: #111827;
+  --color-footer: #0f172a;
+
+  /* Surfaces */
+  --color-page-bg: #d6e3ff;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-surface-muted: #f1f5f9;
+
+  /* Borders */
+  --color-border-hairline: rgba(15, 23, 42, 0.08);
+  --color-border-soft: rgba(15, 23, 42, 0.05);
+
+  /* Text */
+  --color-text-primary: black;
+  --color-text-secondary: black;
+  --color-text-muted: rgb(27, 26, 26);
+  --color-text-subtle: rgb(16, 16, 16);
+  --color-text-on-dark: rgba(255, 255, 255, 0.92);
+
+  /* Effects */
+  --color-shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --color-shadow-medium: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --color-shadow-large: 0 20px 45px rgba(15, 23, 42, 0.12);
+
+  /* Interactive */
+  --color-hover-overlay: rgba(37, 99, 235, 0.06);
+  --color-focus-ring: rgba(37, 99, 235, 0.22);
+}
+
+/* =========================
+   Dark Theme - Blue + Slate
+========================== */
+.app-dark-theme {
+  /* Brand */
+  --color-primary: #3b82f6;
+  --color-primary-hover: #60a5fa;
+  --color-primary-soft: rgba(59, 130, 246, 0.16);
+  --color-accent: #60a5fa;
+
+  /* Layout */
+  --color-navbar: #020617;
+  --color-sidebar: #0f172a;
+  --color-footer: #020617;
+
+  /* Surfaces */
+  --color-page-bg: #020617;
+  --color-surface: #0f172a;
+  --color-surface-elevated: #111827;
+  --color-surface-muted: #1e293b;
+
+  /* Borders */
+  --color-border-hairline: rgba(255, 255, 255, 0.08);
+  --color-border-soft: rgba(255, 255, 255, 0.05);
+
+  /* Text */
+  --color-text-primary: rgb(255, 255, 255);
+  --color-text-secondary: rgb(255, 255, 255);
+  --color-text-muted: rgb(255, 255, 255);
+  --color-text-subtle: rgb(255, 255, 255);
+  --color-text-on-dark: rgb(255, 255, 255);
+
+  /* Angular Material dark-mode tokens */
+  --mat-sys-background: var(--color-page-bg);
+  --mat-sys-on-background: var(--color-text-primary);
+  --mat-sys-surface: var(--color-surface);
+  --mat-sys-surface-bright: var(--color-surface-elevated);
+  --mat-sys-surface-container: var(--color-surface-muted);
+  --mat-sys-surface-container-high: var(--color-surface-muted);
+  --mat-sys-surface-container-highest: var(--color-surface-muted);
+  --mat-sys-surface-container-low: var(--color-surface);
+  --mat-sys-surface-container-lowest: var(--color-surface);
+  --mat-sys-surface-dim: var(--color-page-bg);
+  --mat-sys-surface-variant: var(--color-surface-muted);
+  --mat-sys-on-surface: var(--color-text-primary);
+  --mat-sys-on-surface-variant: var(--color-text-secondary);
+  --mat-sys-outline: rgba(255, 255, 255, 0.45);
+  --mat-sys-outline-variant: rgba(255, 255, 255, 0.18);
+  --mat-sys-primary: var(--color-primary);
+  --mat-sys-on-primary: #ffffff;
+  --mat-sys-primary-container: rgba(59, 130, 246, 0.22);
+  --mat-sys-on-primary-container: #ffffff;
+  --mat-sys-secondary: #cbd5e1;
+  --mat-sys-on-secondary: #020617;
+  --mat-sys-secondary-container: #1e293b;
+  --mat-sys-on-secondary-container: #ffffff;
+  --mat-sys-error: #fca5a5;
+  --mat-sys-on-error: #450a0a;
+  --mat-sys-error-container: rgba(248, 113, 113, 0.18);
+  --mat-sys-on-error-container: #ffffff;
+
+  --mat-card-title-text-color: var(--color-text-primary);
+  --mat-card-subtitle-text-color: var(--color-text-secondary);
+  --mat-card-outlined-container-color: var(--color-surface);
+  --mat-card-outlined-outline-color: var(--color-border-hairline);
+  --mat-form-field-outlined-input-text-color: var(--color-text-primary);
+  --mat-form-field-outlined-label-text-color: var(--color-text-primary);
+  --mat-form-field-outlined-hover-label-text-color: var(--color-text-primary);
+  --mat-form-field-outlined-focus-label-text-color: var(--color-text-primary);
+  --mat-form-field-outlined-outline-color: var(--color-border-hairline);
+  --mat-form-field-outlined-hover-outline-color: rgba(255, 255, 255, 0.55);
+  --mat-form-field-outlined-focus-outline-color: var(--color-primary-hover);
+  --mat-select-enabled-trigger-text-color: var(--color-text-primary);
+  --mat-option-label-text-color: var(--color-text-primary);
+  --mat-option-selected-state-label-text-color: var(--color-text-primary);
+  --mat-option-hover-state-layer-color: rgba(255, 255, 255, 0.08);
+  --mat-option-focus-state-layer-color: rgba(255, 255, 255, 0.12);
+  --mat-option-selected-state-layer-color: rgba(59, 130, 246, 0.22);
+  --mat-menu-item-label-text-color: var(--color-text-primary);
+  --mat-list-list-item-label-text-color: var(--color-text-primary);
+  --mat-list-list-item-supporting-text-color: var(--color-text-secondary);
+  --mat-button-text-label-text-color: var(--color-text-primary);
+  --mat-button-outlined-label-text-color: var(--color-text-primary);
+  --mat-button-outlined-outline-color: var(--color-border-hairline);
+  --mat-chip-label-text-color: var(--color-text-primary);
+  --mat-chip-outline-color: var(--color-border-hairline);
+
+  /* Effects */
+  --color-shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.28);
+  --color-shadow-medium: 0 12px 32px rgba(0, 0, 0, 0.34);
+  --color-shadow-large: 0 24px 56px rgba(0, 0, 0, 0.42);
+
+  /* Interactive */
+  --color-hover-overlay: rgba(59, 130, 246, 0.1);
+  --color-focus-ring: rgba(96, 165, 250, 0.28);
+}
+
+/* Remove Chrome autofill gray/yellow background */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0px 1000px var(--color-surface) inset !important;
+  -webkit-text-fill-color: var(--color-text-primary) !important;
+  caret-color: var(--color-text-primary);
+  transition: background-color 9999s ease-in-out 0s;
+}

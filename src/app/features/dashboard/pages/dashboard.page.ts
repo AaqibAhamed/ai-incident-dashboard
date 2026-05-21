@@ -280,13 +280,13 @@ import { DashboardFacade } from '../data/dashboard.facade';
       }
       .title {
         margin-bottom: var(--space-2);
-        color: #071329; /* deep navy */
+        color: var(--color-text-primary);
         font-weight: 700;
       }
       .lede {
         margin: 0;
         font-size: 0.95rem;
-        color: #4a6b86;
+        color: var(--color-text-secondary);
         max-width: 36rem;
         line-height: 1.5;
       }
@@ -319,7 +319,7 @@ import { DashboardFacade } from '../data/dashboard.facade';
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.06em;
-        color: #5b7b93;
+        color: var(--color-text-secondary);
         margin-bottom: var(--space-2);
       }
       .stat-value {
@@ -330,14 +330,14 @@ import { DashboardFacade } from '../data/dashboard.facade';
         margin-bottom: var(--space-2);
       }
       .stat.surface-card {
-        background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
-        border: 1px solid rgba(11, 31, 58, 0.04);
+        background: var(--color-surface);
+        border: 1px solid var(--color-border-soft);
         box-shadow: 0 6px 18px rgba(14, 30, 50, 0.04);
         border-radius: 10px;
       }
       .stat-hint {
         font-size: 0.8rem;
-        color: #6b8899;
+        color: var(--color-text-muted);
       }
       .section {
         margin-top: var(--space-6);
@@ -357,7 +357,7 @@ import { DashboardFacade } from '../data/dashboard.facade';
       }
       .chart-name {
         font-size: 0.875rem;
-        color: #213a52;
+        color: var(--color-text-secondary);
       }
       .bar-track {
         height: 10px;
@@ -382,7 +382,7 @@ import { DashboardFacade } from '../data/dashboard.facade';
         font-size: 0.875rem;
         font-weight: 500;
         text-align: right;
-        color: #2b485e;
+        color: var(--color-text-secondary);
       }
       .ai mat-card-header {
         padding: var(--space-6) var(--space-6) 0;
@@ -393,7 +393,7 @@ import { DashboardFacade } from '../data/dashboard.facade';
       .ai-body {
         font-size: 0.95rem;
         line-height: 1.6;
-        color: #324a5f;
+        color: var(--color-text-secondary);
         margin-bottom: var(--space-4);
       }
       .row-actions {
@@ -446,7 +446,7 @@ import { DashboardFacade } from '../data/dashboard.facade';
         gap: var(--space-2);
         align-items: center;
         justify-content: space-between;
-        background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+        background: var(--color-surface);
       }
       .ticket-item.active {
         border-color: rgba(79, 142, 247, 0.4);
@@ -466,7 +466,7 @@ import { DashboardFacade } from '../data/dashboard.facade';
       }
       .ticket-meta {
         display: block;
-        color: #6b7f8f;
+        color: var(--color-text-muted);
         font-size: 0.8rem;
       }
       .editor-grid {
