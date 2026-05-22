@@ -7,7 +7,7 @@ import {
   inject,
   mergeApplicationConfig,
   provideZonelessChangeDetection,
-  PLATFORM_ID,
+  PLATFORM_ID
 } from '@angular/core';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideClientHydration, withEventReplay } from '@angular/platform-browser';
@@ -16,7 +16,7 @@ import {
   PreloadAllModules,
   withComponentInputBinding,
   withPreloading,
-  withRouterConfig,
+  withRouterConfig
 } from '@angular/router';
 import { provideApollo } from 'apollo-angular';
 import { AuthStore } from './core/auth/auth.store';
@@ -40,20 +40,17 @@ export const appBaseConfig: ApplicationConfig = {
       routes,
       withPreloading(PreloadAllModules),
       withComponentInputBinding(),
-      withRouterConfig({ onSameUrlNavigation: 'reload' }),
+      withRouterConfig({ onSameUrlNavigation: 'reload' })
     ),
-    provideHttpClient(
-      withFetch(),
-      withInterceptors([authInterceptor, loadingInterceptor, errorInterceptor]),
-    ),
+    provideHttpClient(withFetch(), withInterceptors([authInterceptor, loadingInterceptor, errorInterceptor])),
     provideApollo(apolloOptionsFactory),
     {
       provide: API_CONFIG,
       useValue: {
         graphqlUrl: environment.graphqlUrl,
         restUrl: environment.restUrl,
-        wsUrl: environment.wsUrl,
-      },
+        wsUrl: environment.wsUrl
+      }
     },
     { provide: FEATURE_FLAGS, useValue: environment.featureFlags },
     { provide: ErrorHandler, useClass: GlobalErrorHandler },
@@ -64,18 +61,18 @@ export const appBaseConfig: ApplicationConfig = {
         const auth = inject(AuthStore);
         const platformId = inject(PLATFORM_ID);
         const translate = inject(TranslateService);
-        return () => {
+        return async () => {
           if (isPlatformBrowser(platformId)) {
             translate.restoreLocaleFromStorage();
-            auth.restoreFromStorage();
+            await auth.restoreFromStorage();
           }
         };
-      },
-    },
-  ],
+      }
+    }
+  ]
 };
 
 /** Browser-only: Material animations + hydration */
 export const appConfig: ApplicationConfig = mergeApplicationConfig(appBaseConfig, {
-  providers: [provideAnimationsAsync(), provideClientHydration(withEventReplay())],
+  providers: [provideAnimationsAsync(), provideClientHydration(withEventReplay())]
 });

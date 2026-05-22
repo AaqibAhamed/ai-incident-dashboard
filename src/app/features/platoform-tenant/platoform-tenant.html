@@ -1,0 +1,222 @@
+<div class="page-body">
+  <div class="page-header">
+    <h1>Platform Tenants</h1>
+    <p class="sub">
+      Create organizations and map a sign-in domain. The first tenant administrator is created automatically using the
+      primary domain and admin display name.
+    </p>
+  </div>
+
+  <mat-card appearance="outlined" class="card">
+    <mat-card-title>Register New Tenant</mat-card-title>
+    <mat-card-content>
+      <form [formGroup]="createForm" (ngSubmit)="createTenant()" class="form-column">
+        <div class="form-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Organization name</mat-label>
+            <input matInput formControlName="name" placeholder="e.g. Acme Corp" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Slug</mat-label>
+            <input matInput formControlName="slug" placeholder="acme-corp" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Primary email domain</mat-label>
+            <input matInput formControlName="primaryEmailDomain" placeholder="acme.com" />
+          </mat-form-field>
+        </div>
+
+        <p class="section-label">Default Administrator</p>
+        <div class="form-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Admin display name</mat-label>
+            <input matInput formControlName="tenantAdminName" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Initial password</mat-label>
+            <input matInput type="password" formControlName="tenantAdminPassword" />
+          </mat-form-field>
+        </div>
+
+        <div class="preview-box" [class.preview-muted]="!adminEmailPreview()">
+          <span class="preview-label">Admin sign-in email will be</span>
+          <span class="preview-value">{{ adminEmailPreview() }}</span>
+          <p class="hint">
+            If that address is already in use, a numeric suffix is added automatically (e.g. jane.doe-1).
+          </p>
+        </div>
+
+        <div class="actions">
+          <button mat-flat-button color="primary" type="submit" [disabled]="createForm.invalid || busy()">
+            Create Tenant
+          </button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card appearance="outlined" class="card">
+    <mat-card-title>Active &amp; Suspended Tenants</mat-card-title>
+    <mat-card-content>
+      @if (loading()) {
+      <p class="panel-loading">Loading tenants...</p>
+      } @else if (!liveTenants().length) {
+      <p class="muted">No active or suspended tenants found.</p>
+      } @else {
+      <ul class="list">
+        @for (t of liveTenants(); track t.id) {
+        <li class="tenant-block">
+          <div class="tenant-row">
+            <div class="row-main">
+              <div>
+                <strong>{{ t.name }}</strong>
+                <span class="meta">
+                  {{ t.slug }}
+                  <span
+                    class="status-badge"
+                    [class.active]="t.status === 'Active'"
+                    [class.suspended]="t.status === 'Suspended'"
+                  >
+                    {{ t.status }}
+                  </span>
+                  @if (t.primaryDomain) { · {{ t.primaryDomain }} }
+                </span>
+              </div>
+              @if (t.tenantAdmin) {
+              <div class="admin-info">
+                <span class="admin-label">Admin:</span> {{ t.tenantAdmin.name }} · {{ t.tenantAdmin.email }} @if
+                (!t.tenantAdmin.isActive) {
+                <span class="inactive">(inactive)</span>
+                }
+              </div>
+              } @else {
+              <div class="admin-info muted">No tenant admin on record</div>
+              }
+            </div>
+            <span class="actions">
+              <button mat-button type="button" (click)="toggleExpand(t.id)">
+                {{ expandedTenantId() === t.id ? 'Close' : 'View / Edit' }}
+              </button>
+              @if (t.status === 'Active') {
+              <button mat-button type="button" (click)="suspendTenant(t.id)">Suspend</button>
+              } @else if (t.status === 'Suspended') {
+              <button mat-button type="button" (click)="resumeTenant(t.id)">Resume</button>
+              }
+              <button mat-button color="warn" type="button" (click)="softDelete(t.id)">Delete</button>
+            </span>
+          </div>
+
+          @if (expandedTenantId() === t.id) {
+          <div class="expand-panel">
+            @if (editLoading()) {
+            <p class="panel-loading">Loading details...</p>
+            } @else if (editDetail(); as detail) { @if (detail.id === t.id) {
+            <ng-container *ngTemplateOutlet="tenantEditPanel"></ng-container>
+            } }
+          </div>
+          }
+        </li>
+        }
+      </ul>
+      }
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card appearance="outlined" class="card deleted-card">
+    <mat-card-title>Deleted Tenants</mat-card-title>
+    <mat-card-content>
+      @if (loading()) {
+      <p class="panel-loading">Loading...</p>
+      } @else if (!deletedTenants().length) {
+      <p class="muted">No deleted tenants.</p>
+      } @else {
+      <ul class="list">
+        @for (t of deletedTenants(); track t.id) {
+        <li class="tenant-block">
+          <div class="tenant-row">
+            <div class="row-main">
+              <div>
+                <strong>{{ t.name }}</strong>
+                <span class="meta">{{ t.slug }} · {{ t.status }}</span>
+              </div>
+            </div>
+            <span class="actions">
+              <button mat-button type="button" (click)="toggleExpand(t.id)">
+                {{ expandedTenantId() === t.id ? 'Close' : 'Details' }}
+              </button>
+              <button mat-flat-button color="primary" type="button" (click)="restoreTenant(t.id)">
+                Restore Tenant
+              </button>
+            </span>
+          </div>
+          @if (expandedTenantId() === t.id) {
+          <div class="expand-panel">
+            <ng-container *ngTemplateOutlet="tenantEditPanel"></ng-container>
+          </div>
+          }
+        </li>
+        }
+      </ul>
+      }
+    </mat-card-content>
+  </mat-card>
+
+  <ng-template #tenantEditPanel>
+    @if (editDetail(); as detail) {
+    <form [formGroup]="editForm" (ngSubmit)="saveEdit()" class="form-column">
+      <p class="section-label">Organization Settings</p>
+      <div class="form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Organization Name</mat-label>
+          <input matInput formControlName="tenantName" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Slug</mat-label>
+          <input matInput formControlName="tenantSlug" />
+        </mat-form-field>
+      </div>
+
+      @if (detail.domains.length) {
+      <div class="domains-row">
+        <span class="admin-label">Registered Domains:</span>
+        @for (d of detail.domains; track d.domain) {
+        <span class="domain-pill">{{ d.domain }}{{ d.isPrimary ? ' (primary)' : '' }}</span>
+        }
+      </div>
+      } @if (detail.tenantAdmin; as admin) {
+      <p class="section-label">Tenant Administrator</p>
+      <div class="email-local-row">
+        <mat-form-field appearance="outline" class="grow">
+          <mat-label>Sign-in email (local part)</mat-label>
+          <input matInput formControlName="adminEmailLocalPart" autocomplete="off" />
+          @if (editForm.get('adminEmailLocalPart')?.invalid && editForm.get('adminEmailLocalPart')?.touched) {
+          <mat-error>Invalid format (e.g. use letters, digits, dots, hyphens).</mat-error>
+          }
+        </mat-form-field>
+        <span class="email-at-suffix" title="Domain is fixed for this tenant">{{ adminDomainSuffix() }}</span>
+      </div>
+
+      <div class="form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Display Name</mat-label>
+          <input matInput formControlName="adminName" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Update Password</mat-label>
+          <input matInput type="password" formControlName="adminPassword" placeholder="Leave blank to keep" />
+        </mat-form-field>
+      </div>
+      } @else {
+      <p class="muted">This tenant has no tenant admin in the system.</p>
+      }
+
+      <div class="edit-actions">
+        <button mat-button type="button" (click)="collapseEdit()">Cancel</button>
+        <button mat-flat-button color="primary" type="submit" [disabled]="editForm.invalid || editBusy()">
+          Save Changes
+        </button>
+      </div>
+    </form>
+    }
+  </ng-template>
+</div>
