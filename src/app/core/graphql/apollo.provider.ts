@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { ApolloLink, CombinedGraphQLErrors, InMemoryCache } from '@apollo/client/core';
-import { onError } from '@apollo/client/link/error';
+import { ErrorLink } from '@apollo/client/link/error';
 import { HttpLink } from 'apollo-angular/http';
 import { API_CONFIG } from '../tokens/api-config.token';
 
@@ -8,7 +8,7 @@ export function apolloOptionsFactory() {
   const httpLink = inject(HttpLink);
   const api = inject(API_CONFIG);
 
-  const errorLink = onError((handler) => {
+  const errorLink = new ErrorLink(handler => {
     // Apollo Link's onError signature varies slightly across versions.
     // We defensively read both the modern (error) and classic (graphQLErrors/networkError) shapes.
     const anyHandler = handler as unknown as {
@@ -29,7 +29,7 @@ export function apolloOptionsFactory() {
       for (const e of error.errors) {
         console.error(`[GraphQL:${opName}] ${e.message}`, {
           path: e.path,
-          extensions: e.extensions,
+          extensions: e.extensions
         });
       }
       return;
@@ -39,7 +39,7 @@ export function apolloOptionsFactory() {
     for (const e of gqlErrors) {
       console.error(`[GraphQL:${opName}] ${e.message}`, {
         path: e.path,
-        extensions: e.extensions,
+        extensions: e.extensions
       });
     }
 
@@ -50,7 +50,7 @@ export function apolloOptionsFactory() {
       console.error(`[GraphQL:${opName}] Network error: ${netErr.message}`, {
         statusCode: netErr.statusCode,
         result: netErr.result,
-        response: netErr.response,
+        response: netErr.response
       });
     }
 
@@ -63,8 +63,8 @@ export function apolloOptionsFactory() {
   const link = ApolloLink.from([
     errorLink,
     httpLink.create({
-      uri: api.graphqlUrl,
-    }),
+      uri: api.graphqlUrl
+    })
   ]);
 
   return {
@@ -74,16 +74,16 @@ export function apolloOptionsFactory() {
         Query: {
           fields: {
             tickets: {
-              keyArgs: ['filter'],
-            },
-          },
-        },
-      },
+              keyArgs: ['filter']
+            }
+          }
+        }
+      }
     }),
     defaultOptions: {
       watchQuery: { fetchPolicy: 'cache-and-network' as const },
       query: { fetchPolicy: 'network-only' as const },
-      mutate: { errorPolicy: 'all' as const },
-    },
+      mutate: { errorPolicy: 'all' as const }
+    }
   };
 }
