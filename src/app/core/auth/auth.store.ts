@@ -1,15 +1,24 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { computed, effect, inject, runInInjectionContext, Injector } from '@angular/core';
-import { patchState, signalStore, withComputed, withMethods, withState } from '@ngrx/signals';
+
+import { computed, effect, inject } from '@angular/core';
+
+import { patchState, signalStore, withComputed, withHooks, withMethods, withState } from '@ngrx/signals';
+
 import { firstValueFrom } from 'rxjs';
+
 import type { UserRole } from '../../../graphql/generated/graphql';
+
 import { API_CONFIG } from '../tokens/api-config.token';
 
 const SESSION_KEY = 'aid_session';
 
-function storageAvailable(): boolean {
-  return typeof sessionStorage !== 'undefined' && sessionStorage != null;
-}
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+
+const ACTIVITY_THROTTLE_MS = 30 * 1000;
+
+const REFRESH_RETRY_LIMIT = 3;
+
+const REFRESH_RETRY_BASE_DELAY_MS = 3000;
 
 export interface SessionUser {
   id: string;
@@ -26,11 +35,16 @@ export interface SessionTenant {
 
 type AuthState = {
   user: SessionUser | null;
+
   tenant: SessionTenant | null;
+
   accessToken: string | null;
+
   refreshToken: string | null;
-  lastActivityAt: number | null;
+
   isIdle: boolean;
+
+  initialized: boolean;
 };
 
 export interface LoginCredentials {
@@ -40,231 +54,397 @@ export interface LoginCredentials {
 
 interface LoginResponse {
   accessToken: string;
+
   refreshToken: string;
+
   user: SessionUser;
+
   tenant?: SessionTenant | null;
+}
+
+function storageAvailable(): boolean {
+  return typeof window !== 'undefined' && typeof sessionStorage !== 'undefined';
 }
 
 export const AuthStore = signalStore(
   { providedIn: 'root' },
+
   withState<AuthState>({
     user: null,
-    tenant: null,
-    accessToken: null,
-    refreshToken: null,
-    lastActivityAt: null,
-    isIdle: false,
-  }),
-  withComputed((store) => ({
-    isAuthenticated: computed(() => !!store.accessToken()),
-    roles: computed(() => (store.user() ? [store.user()!.role] : ([] as UserRole[]))),
-    isSuperAdmin: computed(() => store.user()?.role === 'SUPER_ADMIN'),
-    isTenantUser: computed(() => !!store.tenant()?.id),
-    // tenantId: computed(() => store.tenant()?.id ?? null),
-  })),
-  withMethods((store, http = inject(HttpClient), api = inject(API_CONFIG)) => {
-    import('./auth.crypto').then((m) => m).catch(() => null);
 
-    const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+    tenant: null,
+
+    accessToken: null,
+
+    refreshToken: null,
+
+    isIdle: false,
+
+    initialized: false
+  }),
+
+  withComputed(store => ({
+    isAuthenticated: computed(() => !!store.accessToken()),
+
+    roles: computed(() => (store.user() ? [store.user()!.role] : ([] as UserRole[]))),
+
+    isSuperAdmin: computed(() => store.user()?.role === 'SUPER_ADMIN'),
+
+    isTenantUser: computed(() => !!store.tenant()?.id)
+  })),
+
+  withMethods((store, http = inject(HttpClient), api = inject(API_CONFIG)) => {
+    // =====================================================
+    // Crypto
+    // =====================================================
+
+    let cryptoModule: typeof import('./auth.crypto') | null = null;
+
+    const getCrypto = async () => {
+      if (cryptoModule) {
+        return cryptoModule;
+      }
+
+      try {
+        cryptoModule = await import('./auth.crypto');
+
+        return cryptoModule;
+      } catch {
+        return null;
+      }
+    };
+
+    // =====================================================
+    // Runtime Resources
+    // =====================================================
+
+    let refreshTimer: number | null = null;
 
     let idleTimer: number | null = null;
-    let activityListenersInitialized = false;
+
+    let refreshPromise: Promise<void> | null = null;
+
+    let listenersInitialized = false;
+
+    let lastActivityAt = 0;
+
+    const cleanupFns: Array<() => void> = [];
+
+    const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('aid-auth') : null;
+
+    // =====================================================
+    // Cleanup
+    // =====================================================
+
+    const clearRefreshTimer = (): void => {
+      if (refreshTimer != null) {
+        clearTimeout(refreshTimer);
+
+        refreshTimer = null;
+      }
+    };
 
     const clearIdleTimer = (): void => {
       if (idleTimer != null) {
         clearTimeout(idleTimer);
+
         idleTimer = null;
       }
     };
 
-    const performLogout = (): void => {
+    const clearSessionStorage = (): void => {
+      if (!storageAvailable()) return;
+
+      sessionStorage.removeItem(SESSION_KEY);
+    };
+
+    const clearState = (): void => {
       patchState(store, {
         user: null,
-        tenant: null,
-        accessToken: null,
-        refreshToken: null,
-        lastActivityAt: null,
-        isIdle: false,
-      });
 
+        tenant: null,
+
+        accessToken: null,
+
+        refreshToken: null,
+
+        isIdle: false
+      });
+    };
+
+    const fullCleanup = (): void => {
       clearRefreshTimer();
+
       clearIdleTimer();
 
-      if (storageAvailable()) {
-        sessionStorage.removeItem(SESSION_KEY);
+      clearSessionStorage();
+
+      clearState();
+    };
+
+    // =====================================================
+    // Broadcast Channel
+    // =====================================================
+
+    const broadcast = (type: 'logout' | 'refresh'): void => {
+      channel?.postMessage({ type });
+    };
+
+    channel?.addEventListener('message', async event => {
+      switch (event.data?.type) {
+        case 'logout':
+          fullCleanup();
+
+          break;
+
+        case 'refresh':
+          await restoreFromStorage();
+
+          break;
+      }
+    });
+
+    // =====================================================
+    // Persistence
+    // =====================================================
+
+    const persist = async (): Promise<void> => {
+      if (!storageAvailable()) {
+        return;
+      }
+
+      try {
+        const payload = {
+          user: store.user(),
+
+          tenant: store.tenant(),
+
+          accessToken: store.accessToken(),
+
+          refreshToken: store.refreshToken()
+        };
+
+        const crypto = await getCrypto();
+
+        if (crypto) {
+          const encrypted = await crypto.encryptState(payload);
+
+          sessionStorage.setItem(SESSION_KEY, encrypted);
+
+          return;
+        }
+
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(payload));
+      } catch {
+        // best effort
       }
     };
+
+    const readPersisted = async (): Promise<Partial<AuthState> | null> => {
+      if (!storageAvailable()) {
+        return null;
+      }
+
+      try {
+        const raw = sessionStorage.getItem(SESSION_KEY);
+
+        if (!raw) {
+          return null;
+        }
+
+        const crypto = await getCrypto();
+
+        const parsed = crypto ? await crypto.decryptState(raw) : JSON.parse(raw);
+
+        return parsed as Partial<AuthState> | null;
+      } catch {
+        clearSessionStorage();
+
+        return null;
+      }
+    };
+
+    // =====================================================
+    // Logout
+    // =====================================================
+
+    const performLogout = (): void => {
+      fullCleanup();
+
+      broadcast('logout');
+    };
+
+    // =====================================================
+    // Idle Tracking
+    // =====================================================
 
     const startIdleTimer = (): void => {
       clearIdleTimer();
 
       idleTimer = window.setTimeout(() => {
         patchState(store, {
-          isIdle: true,
+          isIdle: true
         });
 
-        // stop refresh cycle
-        clearRefreshTimer();
-
-        // logout user after timeout
         performLogout();
-      }, IDLE_TIMEOUT_MS) as unknown as number;
+      }, IDLE_TIMEOUT_MS);
     };
 
     const updateActivity = (): void => {
       const now = Date.now();
 
-      patchState(store, {
-        lastActivityAt: now,
-        isIdle: false,
-      });
+      if (now - lastActivityAt < ACTIVITY_THROTTLE_MS) {
+        return;
+      }
+
+      lastActivityAt = now;
+
+      if (store.isIdle()) {
+        patchState(store, {
+          isIdle: false
+        });
+      }
 
       startIdleTimer();
-
-      // if user became active again and token exists
-      // ensure refresh scheduling resumes
-      if (store.accessToken()) {
-        scheduleRefresh();
-      }
-    };
-
-    // We'll import crypto helpers lazily to avoid SSR issues
-    let crypto: typeof import('./auth.crypto') | null = null;
-    const getCrypto = async (): Promise<typeof import('./auth.crypto') | null> => {
-      if (crypto) return crypto;
-      try {
-        crypto = await import('./auth.crypto');
-        return crypto;
-      } catch {
-        crypto = null;
-        return null;
-      }
     };
 
     const initializeActivityTracking = (): void => {
-      if (activityListenersInitialized) return;
+      if (listenersInitialized || typeof window === 'undefined') {
+        return;
+      }
 
-      activityListenersInitialized = true;
+      listenersInitialized = true;
 
-      const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+      const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
 
-      events.forEach((event) => {
-        window.addEventListener(event, updateActivity, {
-          passive: true,
+      events.forEach(eventName => {
+        window.addEventListener(eventName, updateActivity, { passive: true });
+
+        cleanupFns.push(() => {
+          window.removeEventListener(eventName, updateActivity);
         });
       });
 
-      document.addEventListener('visibilitychange', () => {
+      const visibilityHandler = async (): Promise<void> => {
         if (!document.hidden) {
           updateActivity();
+
+          await validateAndRefresh();
         }
+      };
+
+      document.addEventListener('visibilitychange', visibilityHandler);
+
+      cleanupFns.push(() => {
+        document.removeEventListener('visibilitychange', visibilityHandler);
+      });
+
+      const onlineHandler = async (): Promise<void> => {
+        await validateAndRefresh();
+      };
+
+      window.addEventListener('online', onlineHandler);
+
+      cleanupFns.push(() => {
+        window.removeEventListener('online', onlineHandler);
       });
 
       updateActivity();
     };
 
-    const persist = async (): Promise<void> => {
-      if (!storageAvailable()) return;
-      try {
-        const state: AuthState = {
-          user: store.user(),
-          tenant: store.tenant(),
-          accessToken: store.accessToken(),
-          refreshToken: store.refreshToken(),
-          lastActivityAt: store.lastActivityAt(),
-          isIdle: store.isIdle(),
-        };
-        const c = await getCrypto();
-        if (c) {
-          const encrypted = await c.encryptState(state);
-          sessionStorage.setItem(SESSION_KEY, encrypted);
-        } else {
-          sessionStorage.setItem(SESSION_KEY, JSON.stringify(state));
-        }
-      } catch {
-        // best-effort
-      }
-    };
+    // =====================================================
+    // Refresh Scheduling
+    // =====================================================
 
-    const readPersisted = async (): Promise<Partial<AuthState> | null> => {
-      if (!storageAvailable()) return null;
-      try {
-        const raw = sessionStorage.getItem(SESSION_KEY);
-        if (!raw) return null;
-        const c = await getCrypto();
-        if (c) {
-          const obj = await c.decryptState(raw);
-          return obj as Partial<AuthState> | null;
-        }
-        return JSON.parse(raw) as Partial<AuthState>;
-      } catch {
-        sessionStorage.removeItem(SESSION_KEY);
-        return null;
-      }
-    };
+    const scheduleRefresh = async (): Promise<void> => {
+      clearRefreshTimer();
 
-    let refreshTimer: number | null = null;
-    let refreshPromise: Promise<void> | null = null;
-
-    const clearRefreshTimer = (): void => {
-      if (refreshTimer != null) {
-        clearTimeout(refreshTimer as unknown as number);
-        refreshTimer = null;
-      }
-    };
-
-    const scheduleRefresh = (): void => {
-      if (store.isIdle()) {
+      if (store.isIdle() || !store.accessToken()) {
         return;
       }
-      clearRefreshTimer();
-      const token = store.accessToken();
-      // use helper to calculate delay; fall back if helper unavailable
-      const c = (async () => await getCrypto())();
-      (async () => {
-        const mod = await c;
-        const delay = mod ? mod.calculateRefreshDelay(token) : null;
-        if (delay == null) return; // can't schedule
-        // if token already expired or within buffer, refresh immediately
-        if (delay === 0) {
-          void performRefresh();
-          return;
-        }
-        refreshTimer = window.setTimeout(() => {
-          void performRefresh();
-        }, delay) as unknown as number;
-      })();
+
+      const crypto = await getCrypto();
+
+      const delay = crypto?.calculateRefreshDelay(store.accessToken()) ?? null;
+
+      if (delay == null) {
+        return;
+      }
+
+      if (delay === 0) {
+        await performRefresh();
+
+        return;
+      }
+
+      refreshTimer = window.setTimeout(() => {
+        void performRefresh();
+      }, delay);
     };
 
-    // performRefresh is defined before we return to ensure it and the effect
-    // are reachable and created during store factory execution.
-    async function performRefresh(): Promise<void> {
-      const rt = store.refreshToken();
-      if (!rt) return;
-      // dedupe concurrent refresh calls
-      if (refreshPromise) return refreshPromise;
+    const validateAndRefresh = async (): Promise<void> => {
+      const crypto = await getCrypto();
+
+      const delay = crypto?.calculateRefreshDelay(store.accessToken()) ?? null;
+
+      if (delay === 0) {
+        await performRefresh();
+      }
+    };
+
+    // =====================================================
+    // Refresh
+    // =====================================================
+
+    async function performRefresh(retryCount = 0): Promise<void> {
+      if (refreshPromise) {
+        return refreshPromise;
+      }
+
+      const refreshToken = store.refreshToken();
+
+      if (!refreshToken) {
+        performLogout();
+
+        return;
+      }
 
       refreshPromise = (async () => {
         try {
-          const body = await firstValueFrom(
-            http.post<LoginResponse>(`${api.restUrl}/auth/refresh`, { refreshToken: rt }),
-          );
+          const body = await firstValueFrom(http.post<LoginResponse>(`${api.restUrl}/auth/refresh`, { refreshToken }));
+
           patchState(store, {
-            user: body.user,
-            tenant: body.tenant ?? null,
             accessToken: body.accessToken,
-            refreshToken: body.refreshToken ?? rt,
+
+            refreshToken: body.refreshToken ?? refreshToken,
+
+            user: body.user,
+
+            tenant: body.tenant ?? null
           });
+
           await persist();
-          scheduleRefresh();
+
+          await scheduleRefresh();
+
+          broadcast('refresh');
         } catch (err) {
-          // if refresh failed with 401, tokens are invalid -> force logout
           if (err instanceof HttpErrorResponse && err.status === 401) {
-            // clear everything and remove persisted session
-            patchState(store, { user: null, tenant: null, accessToken: null, refreshToken: null });
-            if (storageAvailable()) sessionStorage.removeItem(SESSION_KEY);
-            clearRefreshTimer();
+            performLogout();
+
+            return;
           }
+
+          if (retryCount < REFRESH_RETRY_LIMIT) {
+            const retryDelay = REFRESH_RETRY_BASE_DELAY_MS * (retryCount + 1);
+
+            await new Promise(resolve => {
+              setTimeout(resolve, retryDelay);
+            });
+
+            return performRefresh(retryCount + 1);
+          }
+
           throw err;
         } finally {
           refreshPromise = null;
@@ -274,66 +454,75 @@ export const AuthStore = signalStore(
       return refreshPromise;
     }
 
-    // effect: persist whenever relevant signals change and keep refresh timer in sync
-    // Defer effect creation to next microtask to ensure injection context is available
-    Promise.resolve().then(() => {
-      try {
-        runInInjectionContext(inject(Injector), () => {
-          effect(() => {
-            // read signals so effect re-runs on changes
-            store.accessToken();
-            store.refreshToken();
-            store.user();
-            store.tenant();
-            // persist and schedule/clear refresh
-            void persist();
-            scheduleRefresh();
-          });
+    // =====================================================
+    // Restore
+    // =====================================================
+
+    async function restoreFromStorage(): Promise<void> {
+      const parsed = await readPersisted();
+
+      if (!parsed) {
+        patchState(store, {
+          initialized: true
         });
-      } catch {
-        // If effect fails, it's okay - persist still happens in methods
+
+        return;
       }
-    });
+
+      patchState(store, {
+        user: parsed.user ?? null,
+
+        tenant: parsed.tenant ?? null,
+
+        accessToken: parsed.accessToken ?? null,
+
+        refreshToken: parsed.refreshToken ?? null
+      });
+
+      try {
+        await validateAndRefresh();
+
+        await scheduleRefresh();
+
+        initializeActivityTracking();
+      } catch {
+        performLogout();
+      }
+
+      patchState(store, {
+        initialized: true
+      });
+    }
+
+    // =====================================================
+    // Public API
+    // =====================================================
 
     return {
-      async restoreFromStorage(): Promise<void> {
-        const parsed = await readPersisted();
-        if (!parsed) return;
+      async login(credentials: LoginCredentials): Promise<void> {
+        const body = await firstValueFrom(http.post<LoginResponse>(`${api.restUrl}/auth/login`, credentials));
 
         patchState(store, {
-          user: parsed.user ?? null,
-          tenant: parsed.tenant ?? null,
-          accessToken: parsed.accessToken ?? null,
-          refreshToken: parsed.refreshToken ?? null,
+          user: body.user,
+
+          tenant: body.tenant ?? null,
+
+          accessToken: body.accessToken,
+
+          refreshToken: body.refreshToken,
+
+          isIdle: false
         });
 
-        if (parsed.accessToken) {
-          initializeActivityTracking();
-          updateActivity();
-          scheduleRefresh();
-        }
-      },
+        initializeActivityTracking();
 
-      async login(credentials: LoginCredentials): Promise<void> {
-        try {
-          const body = await firstValueFrom(
-            http.post<LoginResponse>(`${api.restUrl}/auth/login`, credentials),
-          );
-          patchState(store, {
-            user: body.user,
-            tenant: body.tenant ?? null,
-            accessToken: body.accessToken,
-            refreshToken: body.refreshToken,
-          });
-          // persist and schedule a refresh when login succeeds
-          await persist();
-          scheduleRefresh();
-          initializeActivityTracking();
-          updateActivity();
-        } catch (err) {
-          // rethrow after optional handling so callers can show messages
-          throw err;
-        }
+        startIdleTimer();
+
+        await persist();
+
+        await scheduleRefresh();
+
+        broadcast('refresh');
       },
 
       logout(): void {
@@ -343,10 +532,40 @@ export const AuthStore = signalStore(
       async refresh(): Promise<void> {
         return performRefresh();
       },
-      // internal implementation used by scheduler and public refresh()
-      async performRefreshInternal(): Promise<void> {
-        return performRefresh();
+
+      async restoreFromStorage(): Promise<void> {
+        return restoreFromStorage();
       },
+
+      // Expose persist so hooks can access it to run a persistence effect
+      async saveToStorage(): Promise<void> {
+        return persist();
+      }
     };
   }),
+
+  withHooks(store => ({
+    onInit(): void {
+      // restoreFromStorage should run once during init
+      void store.restoreFromStorage();
+
+      // persistence effect: watch tokens and persist whenever they change
+      effect(() => {
+        store.accessToken();
+
+        store.refreshToken();
+
+        // only persist after the store has finished restoring initial state
+        if (store.initialized()) {
+          // call the exposed persist method (fire-and-forget)
+          void store.saveToStorage();
+        }
+      });
+    },
+
+    onDestroy(): void {
+      // cleanup handled by closures
+      // runtime resources released automatically
+    }
+  }))
 );
