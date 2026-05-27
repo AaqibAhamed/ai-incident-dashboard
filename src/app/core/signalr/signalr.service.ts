@@ -1,8 +1,9 @@
 import { inject, Injectable, Injector, signal } from '@angular/core';
 import * as signalR from '@microsoft/signalr';
+import { LogLevel } from '@microsoft/signalr';
+
 import { API_CONFIG } from '../tokens/api-config.token';
 import { AuthStore } from '../auth/auth.store';
-import { LogLevel } from '@microsoft/signalr';
 
 @Injectable({ providedIn: 'root' })
 export class SignalRService {
@@ -15,228 +16,276 @@ export class SignalRService {
 
   private hub?: signalR.HubConnection;
 
-  private connected = signal(false);
-  // Expose a readonly getter for UI diagnostics
-  connected$ = {
-    get: () => this.connected()
-  };
+  // --------------------------------------------------------------------------
+  // Connection State
+  // --------------------------------------------------------------------------
 
-  // Track ticket groups we've joined (for diagnostics only)
-  private joinedTickets = new Set<string>();
-  joinedTickets$ = {
-    get: () => Array.from(this.joinedTickets)
-  };
-  // Pending ticket joins requested before the hub is ready
-  private pendingTicketJoins = new Set<string>();
+  private readonly connectedSignal = signal(false);
 
-  // Simple signals for last event payloads — facades can subscribe or we can extend with Subjects
-  lastTicketCreated = signal<unknown | null>(null);
-  lastTicketUpdated = signal<unknown | null>(null);
-  lastTicketAssigned = signal<unknown | null>(null);
-  lastCommentAdded = signal<unknown | null>(null);
+  readonly connected = this.connectedSignal.asReadonly();
 
-  constructor() {
-    // Defer auto-start/stop checks until after Angular finishes provider initialization.
-    // Reading signal store state synchronously in the constructor can trigger circular DI
-    // when the store itself is being created during app initialization. Using setTimeout(0)
-    // schedules the checks for the next macrotask, avoiding that problem.
-    setTimeout(() => {
-      (async () => {
-        // initial state (best-effort)
-        try {
-          const auth = this.getAuth();
-          if (auth.isAuthenticated() && auth.tenant()?.id) {
-            await this.start();
-          }
-        } catch {
-          // best-effort
-        }
+  // --------------------------------------------------------------------------
+  // Joined Ticket Groups
+  // --------------------------------------------------------------------------
 
-        // Periodically reconcile auth state and SignalR connection.
-        void setInterval(async () => {
-          try {
-            const auth = this.getAuth();
-            if (auth.isAuthenticated() && auth.tenant()?.id) {
-              if (!this.hub) await this.start();
-            } else {
-              if (this.hub) await this.stop();
-            }
-          } catch {
-            // ignore
-          }
-        }, 1000);
-      })();
-    }, 0);
-  }
+  private readonly joinedTicketsSignal = signal<string[]>([]);
 
-  private buildConnection(accessToken: string | null) {
-    // Prefer restUrl/graphqlUrl/wsUrl but ensure the backend hubs path (/hubs)
-    // is used rather than nesting under /api. If the configured base ends
-    // with '/api' (common in this project), strip that segment so the
-    // negotiated path becomes '/hubs/tickets' which matches the server map.
+  readonly joinedTickets = this.joinedTicketsSignal.asReadonly();
+
+  // Used when joinTicket() is called before connection is ready
+  private readonly pendingTicketJoins = new Set<string>();
+
+  // --------------------------------------------------------------------------
+  // Realtime Event Signals
+  // --------------------------------------------------------------------------
+
+  readonly lastTicketCreated = signal<unknown | null>(null);
+
+  readonly lastTicketUpdated = signal<unknown | null>(null);
+
+  readonly lastTicketAssigned = signal<unknown | null>(null);
+
+  readonly lastCommentAdded = signal<unknown | null>(null);
+
+  // --------------------------------------------------------------------------
+  // Connection Builder
+  // --------------------------------------------------------------------------
+
+  private buildConnection(accessToken: string | null): signalR.HubConnection {
     const configured = (this.api?.restUrl ?? this.api?.graphqlUrl ?? '').replace(/\/$/, '');
+
     const base = configured.replace(/\/api(?=$|\/)/i, '');
+
     const hubUrl = base ? `${base}/hubs/tickets` : '/hubs/tickets';
+
     return new signalR.HubConnectionBuilder()
-      .withUrl(hubUrl, { accessTokenFactory: async () => accessToken ?? '' })
+      .withUrl(hubUrl, {
+        accessTokenFactory: async () => accessToken ?? ''
+      })
       .withAutomaticReconnect()
       .configureLogging(LogLevel.Information)
       .build();
   }
-  // Start SignalR connection with an optional timeout (ms). Throws on failure/timeout.
-  async start(timeoutMs = 5000): Promise<void> {
-    if (this.hub) return;
-    const auth = this.getAuth();
-    const access = auth.accessToken();
-    this.hub = this.buildConnection(access);
 
-    // Wire handlers early so incoming events during start are handled.
-    this.hub.on('TicketCreated', (payload: unknown) => this.lastTicketCreated.set(payload));
-    this.hub.on('TicketUpdated', (payload: unknown) => this.lastTicketUpdated.set(payload));
-    this.hub.on('TicketAssigned', (payload: unknown) => this.lastTicketAssigned.set(payload));
-    this.hub.on('CommentAdded', (payload: unknown) => this.lastCommentAdded.set(payload));
+  // --------------------------------------------------------------------------
+  // Start Connection
+  // --------------------------------------------------------------------------
 
-    console.debug(
-      '[SignalR] starting connection to',
-      (this.api?.restUrl ?? this.api?.graphqlUrl ?? '').replace(/\/$/, '')
-    );
-
-    const startPromise = (async () => {
-      await this.hub!.start();
-    })();
-
-    const timeoutPromise = new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new Error('SignalR start timeout')), timeoutMs)
-    );
-
-    try {
-      await Promise.race([startPromise, timeoutPromise]);
-      this.connected.set(true);
-      console.info('[SignalR] connected');
-    } catch (err) {
-      console.warn('[SignalR] failed to start connection', err);
-      // Ensure hub is cleared so callers can retry later
-      this.hub = undefined;
-      this.connected.set(false);
-      throw err;
-    }
-
-    // Connection closed handler: clear hub so reconnection logic can attempt restart
-    this.hub.onclose(err => {
-      console.warn('[SignalR] connection closed', err?.message ?? err);
-      if (err) console.error(err);
-      this.hub = undefined;
-      this.connected.set(false);
-    });
-
-    // Join tenant group if available
-    const tenant = auth.tenant();
-    if (tenant?.id) {
-      try {
-        await this.hub.invoke('JoinTenant', tenant.id);
-        console.debug('[SignalR] joined tenant group', tenant.id);
-      } catch (err) {
-        console.warn('[SignalR] failed to join tenant group', tenant.id, err);
-      }
-    }
-
-    // Process any pending ticket joins requested before the hub was ready
-    if (this.pendingTicketJoins.size > 0) {
-      for (const tId of Array.from(this.pendingTicketJoins)) {
-        try {
-          await this.hub.invoke('JoinTicket', tId);
-          console.debug('[SignalR] processed pending join for', tId);
-          this.pendingTicketJoins.delete(tId);
-          this.joinedTickets.add(tId);
-        } catch (err) {
-          console.warn('[SignalR] failed pending join for', tId, err);
-        }
-      }
-    }
-  }
-
-  async stop(): Promise<void> {
-    if (!this.hub) return;
-    try {
-      await this.hub.stop();
-    } finally {
-      this.hub = undefined;
-      this.connected.set(false);
-    }
-  }
-
-  // Join a specific ticket group to receive ticket-level events
-  async joinTicket(ticketId: string): Promise<void> {
-    console.debug('[SignalR] joinTicket', ticketId);
-    // If hub isn't available or not yet connected, enqueue the join and try to start
-    if (!this.hub || !(await this.waitForConnected(50))) {
-      this.pendingTicketJoins.add(ticketId);
-      try {
-        await this.start(3000).catch(() => {});
-      } catch {
-        // ignore — the pending set will be processed later when/if connection becomes ready
-      }
+  async start(): Promise<void> {
+    // Prevent duplicate connections
+    if (this.hub?.state === signalR.HubConnectionState.Connected) {
       return;
     }
 
-    // Hub is present and connected; invoke immediately
+    // Prevent parallel start attempts
+    if (
+      this.hub?.state === signalR.HubConnectionState.Connecting ||
+      this.hub?.state === signalR.HubConnectionState.Reconnecting
+    ) {
+      return;
+    }
+
+    const auth = this.getAuth();
+
+    const accessToken = auth.accessToken();
+
+    if (!accessToken) {
+      console.warn('[SignalR] no access token available');
+      return;
+    }
+
+    this.hub = this.buildConnection(accessToken);
+
+    // ----------------------------------------------------------------------
+    // Event Handlers
+    // ----------------------------------------------------------------------
+
+    this.hub.on('TicketCreated', payload => {
+      this.lastTicketCreated.set(payload);
+    });
+
+    this.hub.on('TicketUpdated', payload => {
+      this.lastTicketUpdated.set(payload);
+    });
+
+    this.hub.on('TicketAssigned', payload => {
+      this.lastTicketAssigned.set(payload);
+    });
+
+    this.hub.on('CommentAdded', payload => {
+      this.lastCommentAdded.set(payload);
+    });
+
+    // ----------------------------------------------------------------------
+    // Reconnect Lifecycle
+    // ----------------------------------------------------------------------
+
+    this.hub.onreconnecting(error => {
+      console.warn('[SignalR] reconnecting...', error);
+
+      this.connectedSignal.set(false);
+    });
+
+    this.hub.onreconnected(async connectionId => {
+      console.info('[SignalR] reconnected', connectionId);
+
+      this.connectedSignal.set(true);
+
+      await this.rejoinGroups();
+    });
+
+    this.hub.onclose(error => {
+      console.warn('[SignalR] connection closed', error);
+
+      this.connectedSignal.set(false);
+
+      this.hub = undefined;
+    });
+
+    // ----------------------------------------------------------------------
+    // Start Hub
+    // ----------------------------------------------------------------------
+
+    try {
+      console.debug('[SignalR] starting connection');
+
+      await this.hub.start();
+
+      this.connectedSignal.set(true);
+
+      console.info('[SignalR] connected');
+
+      // Join tenant group automatically
+      const tenant = auth.tenant();
+
+      if (tenant?.id) {
+        await this.hub.invoke('JoinTenant', tenant.id);
+
+        console.debug('[SignalR] joined tenant group', tenant.id);
+      }
+
+      // Process queued joins
+      await this.rejoinGroups();
+    } catch (error) {
+      console.error('[SignalR] failed to start', error);
+
+      this.connectedSignal.set(false);
+
+      this.hub = undefined;
+
+      throw error;
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // Stop Connection
+  // --------------------------------------------------------------------------
+
+  async stop(): Promise<void> {
+    if (!this.hub) {
+      return;
+    }
+
+    try {
+      await this.hub.stop();
+    } finally {
+      this.connectedSignal.set(false);
+
+      this.hub = undefined;
+
+      this.joinedTicketsSignal.set([]);
+
+      this.pendingTicketJoins.clear();
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // Join Ticket Group
+  // --------------------------------------------------------------------------
+
+  async joinTicket(ticketId: string): Promise<void> {
+    if (!ticketId) {
+      return;
+    }
+
+    // Prevent duplicates
+    if (this.joinedTickets().includes(ticketId)) {
+      return;
+    }
+
+    // Queue if not connected yet
+    if (!this.hub || this.hub.state !== signalR.HubConnectionState.Connected) {
+      console.debug('[SignalR] queueing ticket join', ticketId);
+
+      this.pendingTicketJoins.add(ticketId);
+
+      return;
+    }
+
     try {
       await this.hub.invoke('JoinTicket', ticketId);
+
+      this.joinedTicketsSignal.update(tickets => (tickets.includes(ticketId) ? tickets : [...tickets, ticketId]));
+
       console.debug('[SignalR] joined ticket group', ticketId);
-      this.joinedTickets.add(ticketId);
-    } catch (err) {
-      console.warn('[SignalR] failed to join ticket group', ticketId, err);
-      // If invoke fails while connected, add to pending so retry logic can process later
+    } catch (error) {
+      console.warn('[SignalR] failed to join ticket group', ticketId, error);
+
       this.pendingTicketJoins.add(ticketId);
     }
   }
 
+  // --------------------------------------------------------------------------
+  // Leave Ticket Group
+  // --------------------------------------------------------------------------
+
   async leaveTicket(ticketId: string): Promise<void> {
-    console.debug('[SignalR] leaveTicket', ticketId);
+    if (!ticketId) {
+      return;
+    }
+
+    this.pendingTicketJoins.delete(ticketId);
+
+    this.joinedTicketsSignal.update(tickets => tickets.filter(t => t !== ticketId));
+
+    if (!this.hub || this.hub.state !== signalR.HubConnectionState.Connected) {
+      return;
+    }
+
     try {
-      // Remove from pending set (if it was queued)
-      if (this.pendingTicketJoins.has(ticketId)) this.pendingTicketJoins.delete(ticketId);
-      if (this.joinedTickets.has(ticketId)) this.joinedTickets.delete(ticketId);
-
-      if (!this.hub) {
-        // nothing else to do
-        return;
-      }
-
-      const ready = await this.waitForConnected(1000);
-      if (!ready) {
-        console.debug('[SignalR] hub not connected when leaving ticket, skipping invoke', ticketId);
-        return;
-      }
-
       await this.hub.invoke('LeaveTicket', ticketId);
-      this.joinedTickets.delete(ticketId);
+
       console.debug('[SignalR] left ticket group', ticketId);
-    } catch (err) {
-      console.warn('[SignalR] failed to leave ticket group', ticketId, err);
+    } catch (error) {
+      console.warn('[SignalR] failed to leave ticket group', ticketId, error);
     }
   }
 
-  private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
+  // --------------------------------------------------------------------------
+  // Rejoin Groups After Reconnect
+  // --------------------------------------------------------------------------
 
-  private async waitForConnected(timeoutMs: number): Promise<boolean> {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      try {
-        if (this.connected && this.connected()) return true;
-      } catch {
-        // ignore
-      }
-      // also check underlying hub state as a fallback
-      try {
-        if (this.hub && this.hub.state === signalR.HubConnectionState?.Connected) return true;
-      } catch {
-        // ignore
-      }
-      await this.sleep(100);
+  private async rejoinGroups(): Promise<void> {
+    if (!this.hub || this.hub.state !== signalR.HubConnectionState.Connected) {
+      return;
     }
-    return false;
+
+    const ticketIds = [...this.joinedTickets(), ...Array.from(this.pendingTicketJoins)];
+
+    const uniqueTicketIds = [...new Set(ticketIds)];
+
+    for (const ticketId of uniqueTicketIds) {
+      try {
+        await this.hub.invoke('JoinTicket', ticketId);
+
+        this.joinedTicketsSignal.update(tickets => (tickets.includes(ticketId) ? tickets : [...tickets, ticketId]));
+
+        this.pendingTicketJoins.delete(ticketId);
+
+        console.debug('[SignalR] rejoined ticket group', ticketId);
+      } catch (error) {
+        console.warn('[SignalR] failed to rejoin ticket group', ticketId, error);
+      }
+    }
   }
 }

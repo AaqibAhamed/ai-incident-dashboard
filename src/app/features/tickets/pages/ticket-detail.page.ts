@@ -1,5 +1,14 @@
 import { HttpClient } from '@angular/common/http';
-import { Component, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -23,6 +32,7 @@ import { SignalRService } from '../../../core/signalr/signalr.service';
 @Component({
   selector: 'app-ticket-detail',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     FormsModule,
     RouterLink,
@@ -103,7 +113,13 @@ import { SignalRService } from '../../../core/signalr/signalr.service';
               </mat-list>
               <mat-form-field appearance="outline" class="full">
                 <mat-label>New comment</mat-label>
-                <textarea matInput rows="3" [(ngModel)]="commentDraft"></textarea>
+                <!-- <textarea matInput rows="3" [(ngModel)]="commentDraft"></textarea> -->
+                <textarea
+                  matInput
+                  rows="3"
+                  [ngModel]="commentDraft()"
+                  (ngModelChange)="commentDraft.set($event)"
+                ></textarea>
               </mat-form-field>
               <div class="row">
                 <button mat-flat-button color="primary" type="button" (click)="post()">Post</button>
@@ -302,6 +318,7 @@ import { SignalRService } from '../../../core/signalr/signalr.service';
 export default class TicketDetailPage {
   readonly ticket = input<TicketQuery['ticket'] | null>(null);
   readonly ticketLive = signal<TicketQuery['ticket'] | null>(null);
+  private currentJoinedTicketId: string | null = null;
 
   private readonly http = inject(HttpClient);
   private readonly apollo = inject(Apollo);
@@ -314,7 +331,8 @@ export default class TicketDetailPage {
   readonly flags = inject(FEATURE_FLAGS);
   private readonly signalr = inject(SignalRService);
 
-  commentDraft = '';
+  // commentDraft = '';
+  readonly commentDraft = signal('');
 
   readonly tenantUsers = signal<Array<TenantUsersQuery['tenantUsers'][number]>>([]);
   readonly previewUrls = signal<Record<string, string>>({});
@@ -330,96 +348,113 @@ export default class TicketDetailPage {
     void this.loadTenantUsers();
 
     // Join ticket SignalR group when viewing
-    effect(
-      () => {
-        const t = this.ticketLive();
-        if (!t) return;
-        void this.signalr.joinTicket(t.id).catch(() => {});
-      },
-      { allowSignalWrites: false }
-    );
+    // effect(
+    //   () => {
+    //     const t = this.ticketLive();
+    //     if (!t) return;
+    //     void this.signalr.joinTicket(t.id).catch(() => {});
+    //   }
+    // );
+
+    effect(() => {
+      const t = this.ticketLive();
+
+      const nextTicketId = t?.id ?? null;
+
+      // Leave previous ticket group
+      if (this.currentJoinedTicketId && this.currentJoinedTicketId !== nextTicketId) {
+        void this.signalr.leaveTicket(this.currentJoinedTicketId).catch(() => {});
+      }
+
+      // Join new ticket group
+      if (nextTicketId && this.currentJoinedTicketId !== nextTicketId) {
+        this.currentJoinedTicketId = nextTicketId;
+
+        void this.signalr.joinTicket(nextTicketId).catch(() => {});
+      }
+    });
 
     // Refresh ticket when updates or comments arrive via SignalR
-    effect(
-      () => {
-        const upd = this.signalr.lastTicketUpdated();
-        if (!upd) return;
-        const t = this.ticketLive();
-        const payload = upd as { TenantId: string; Ticket: { id: string } } | null;
-        if (!t || !payload) return;
-        if (payload.Ticket?.id === t.id) {
-          void this.refreshTicket();
-        }
-      },
-      { allowSignalWrites: false }
-    );
+    effect(() => {
+      const upd = this.signalr.lastTicketUpdated();
+      if (!upd) return;
+      const t = this.ticketLive();
+      const payload = upd as { TenantId: string; Ticket: { id: string } } | null;
+      if (!t || !payload) return;
+      if (payload.Ticket?.id === t.id) {
+        void this.refreshTicket();
+      }
+    });
 
-    effect(
-      () => {
-        const c = this.signalr.lastCommentAdded();
-        if (!c) return;
-        const t = this.ticketLive();
-        const payload = c as { TenantId: string; TicketId: string } | null;
-        if (!t || !payload) return;
-        if (payload.TicketId === t.id) {
-          void this.refreshTicket();
-        }
-      },
-      { allowSignalWrites: false }
-    );
+    effect(() => {
+      const c = this.signalr.lastCommentAdded();
+      if (!c) return;
+      const t = this.ticketLive();
+      const payload = c as { TenantId: string; TicketId: string } | null;
+      if (!t || !payload) return;
+      if (payload.TicketId === t.id) {
+        void this.refreshTicket();
+      }
+    });
 
-    effect(
-      () => {
-        this.ticketLive.set(this.ticket());
-      },
-      { allowSignalWrites: true }
-    );
+    effect(() => {
+      this.ticketLive.set(this.ticket());
+    });
 
     // Sync blob previews with ticket attachments. Do NOT read `previewUrls()` here without
     // `untracked` — otherwise every `previewUrls.set/update` re-runs this effect and freezes the tab.
-    effect(
-      () => {
-        const t = this.ticketLive();
-        const attachments = t?.attachments ?? [];
+    effect(() => {
+      const t = this.ticketLive();
+      const attachments = t?.attachments ?? [];
 
-        untracked(() => {
-          const current = this.previewUrls();
-          const keepIds = new Set(attachments.filter(a => this.isImageFile(a.fileName)).map(a => a.id));
+      untracked(() => {
+        const current = this.previewUrls();
+        const keepIds = new Set(attachments.filter(a => this.isImageFile(a.fileName)).map(a => a.id));
 
-          const next: Record<string, string> = {};
-          for (const id of keepIds) {
-            const url = current[id];
-            if (url) next[id] = url;
+        const next: Record<string, string> = {};
+        for (const id of keepIds) {
+          const url = current[id];
+          if (url) next[id] = url;
+        }
+
+        for (const [id, url] of Object.entries(current)) {
+          if (!keepIds.has(id)) {
+            URL.revokeObjectURL(url);
           }
+        }
 
-          for (const [id, url] of Object.entries(current)) {
-            if (!keepIds.has(id)) {
-              URL.revokeObjectURL(url);
-            }
-          }
+        const sameMap =
+          Object.keys(next).length === Object.keys(current).length &&
+          Object.keys(next).every(k => next[k] === current[k]);
+        if (!sameMap) {
+          this.previewUrls.set(next);
+        }
 
-          const sameMap =
-            Object.keys(next).length === Object.keys(current).length &&
-            Object.keys(next).every(k => next[k] === current[k]);
-          if (!sameMap) {
-            this.previewUrls.set(next);
+        const urls = this.previewUrls();
+        for (const a of attachments) {
+          if (!this.isImageFile(a.fileName)) continue;
+          if (!urls[a.id]) {
+            void this.fetchPreview(a.id, a.url);
           }
+        }
+      });
+    });
 
-          const urls = this.previewUrls();
-          for (const a of attachments) {
-            if (!this.isImageFile(a.fileName)) continue;
-            if (!urls[a.id]) {
-              void this.fetchPreview(a.id, a.url);
-            }
-          }
-        });
-      },
-      { allowSignalWrites: true }
-    );
+    // this.destroyRef.onDestroy(() => {
+    //   const cur = this.previewUrls();
+    //   for (const url of Object.values(cur)) URL.revokeObjectURL(url);
+    // });
 
     this.destroyRef.onDestroy(() => {
       const cur = this.previewUrls();
-      for (const url of Object.values(cur)) URL.revokeObjectURL(url);
+
+      for (const url of Object.values(cur)) {
+        URL.revokeObjectURL(url);
+      }
+
+      if (this.currentJoinedTicketId) {
+        void this.signalr.leaveTicket(this.currentJoinedTicketId).catch(() => {});
+      }
     });
   }
 
@@ -433,23 +468,71 @@ export default class TicketDetailPage {
     await this.refreshTicket();
   }
 
+  // async post(): Promise<void> {
+  //   const t = this.ticketLive();
+  //   const body = this.commentDraft.trim();
+  //   if (!t || !body) return;
+  //   await this.facade.addComment(t.id, body);
+  //   this.commentDraft = '';
+  //   // Defer refresh to next tick to avoid ExpressionChangedAfterItHasBeenCheckedError
+  //   setTimeout(() => void this.refreshTicket(), 0);
+  // }
+
+  // async post(): Promise<void> {
+  //   const t = this.ticketLive();
+
+  //   const body = this.commentDraft().trim();
+
+  //   if (!t || !body) {
+  //     return;
+  //   }
+
+  //   try {
+  //     await this.facade.addComment(t.id, body);
+
+  //     // Reset local draft only after successful submit
+  //     queueMicrotask(() => {
+  //       this.commentDraft.set('');
+  //     });
+
+  //     // NO manual refresh here
+  //     // SignalR realtime event already refreshes the ticket
+  //   } catch {
+  //     this.snack.open('Failed to post comment.', 'OK', {
+  //       duration: 4000
+  //     });
+  //   }
+  // }
   async post(): Promise<void> {
     const t = this.ticketLive();
-    const body = this.commentDraft.trim();
-    if (!t || !body) return;
-    await this.facade.addComment(t.id, body);
-    this.commentDraft = '';
-    // Defer refresh to next tick to avoid ExpressionChangedAfterItHasBeenCheckedError
-    setTimeout(() => void this.refreshTicket(), 0);
-  }
 
+    const body = this.commentDraft().trim();
+
+    if (!t || !body) {
+      return;
+    }
+
+    try {
+      await this.facade.addComment(t.id, body);
+
+      this.commentDraft.set('');
+
+      // Refresh immediately for current tab
+      await this.refreshTicket();
+    } catch {
+      this.snack.open('Failed to post comment.', 'OK', {
+        duration: 4000
+      });
+    }
+  }
   async useAiDraft(): Promise<void> {
     const t = this.ticket();
     if (!t) return;
     this.aiBusy.set(true);
     try {
       const r = await this.ai.suggestedReply(t.id);
-      this.commentDraft = r.draft;
+      //this.commentDraft = r.draft;
+      this.commentDraft.set(r.draft);
     } catch {
       this.snack.open('AI service unavailable, please try again.', 'OK', { duration: 5000 });
     } finally {
