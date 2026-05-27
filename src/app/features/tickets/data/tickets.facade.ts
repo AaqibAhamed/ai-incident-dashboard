@@ -1,4 +1,5 @@
-import { inject, Injectable, signal } from '@angular/core';
+import { inject, Injectable, signal, effect, untracked } from '@angular/core';
+import { SignalRService } from '../../../core/signalr/signalr.service';
 import { Apollo } from 'apollo-angular';
 import { firstValueFrom } from 'rxjs';
 import {
@@ -14,7 +15,7 @@ import {
   type TicketsQuery,
   type TicketsQueryVariables,
   UpdateTicketDocument,
-  type UpdateTicketMutationVariables,
+  type UpdateTicketMutationVariables
 } from '../../../../graphql/generated/graphql';
 import { TicketFiltersStore } from './ticket-filters.store';
 
@@ -32,6 +33,67 @@ export class TicketsFacade {
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
 
+  private readonly signalr = inject(SignalRService);
+
+  constructor() {
+    // Register reactive effects synchronously within the injection context.
+    this.registerSignalREffects();
+
+    // Start SignalR connection asynchronously (best-effort).
+    void this.initSignalR();
+  }
+
+  private async initSignalR(): Promise<void> {
+    try {
+      await this.signalr.start();
+    } catch {
+      // ignore connection failures — SignalR is best-effort
+    }
+  }
+
+  // Register effects synchronously so they're created inside the injection context.
+  private registerSignalREffects(): void {
+    // React to ticket created
+    type TicketCreatedEvent = { TenantId: string; Ticket: TicketListNode };
+    effect(() => {
+      const ev = this.signalr.lastTicketCreated() as TicketCreatedEvent | null;
+      if (!ev) return;
+      untracked(() => {
+        const t = ev.Ticket;
+        if (!t) return;
+        this.items.update(cur => {
+          if (cur.find(x => x.id === t.id)) return cur;
+          return [t, ...cur];
+        });
+      });
+    });
+
+    // React to ticket updated
+    type TicketUpdatedEvent = { TenantId: string; Ticket: TicketListNode };
+    effect(() => {
+      const ev = this.signalr.lastTicketUpdated() as TicketUpdatedEvent | null;
+      if (!ev) return;
+      untracked(() => {
+        const t = ev.Ticket;
+        if (!t) return;
+        this.items.update(cur => cur.map(x => (x.id === t.id ? t : x)));
+      });
+    });
+
+    // React to comment added — update single ticket cache if present
+    type CommentAddedEvent = { TenantId: string; TicketId: string; Comment: unknown };
+    effect(() => {
+      const ev = this.signalr.lastCommentAdded() as CommentAddedEvent | null;
+      if (!ev) return;
+      untracked(() => {
+        const ticketId = ev.TicketId;
+        const comment = ev.Comment;
+        if (!ticketId || !comment) return;
+        // Optional: we could fetch updated ticket or patch comments if we stored full ticket cache here
+      });
+    });
+  }
+
   async loadFirst(): Promise<void> {
     this.loading.set(true);
     this.error.set(null);
@@ -39,10 +101,10 @@ export class TicketsFacade {
       const vars: TicketsQueryVariables = {
         filter: this.filters.graphqlFilter(),
         after: null,
-        first: PAGE_SIZE,
+        first: PAGE_SIZE
       };
       const result = await firstValueFrom(
-        this.apollo.query({ query: TicketsDocument, variables: vars, fetchPolicy: 'network-only' }),
+        this.apollo.query({ query: TicketsDocument, variables: vars, fetchPolicy: 'network-only' })
       );
       const conn = result.data?.tickets;
       if (!conn) {
@@ -50,7 +112,7 @@ export class TicketsFacade {
         this.pageInfo.set(null);
         return;
       }
-      this.items.set(conn.edges.map((e) => e.node));
+      this.items.set(conn.edges.map(e => e.node));
       this.pageInfo.set(conn.pageInfo);
     } catch {
       this.error.set('Failed to load tickets');
@@ -69,16 +131,16 @@ export class TicketsFacade {
       const vars: TicketsQueryVariables = {
         filter: this.filters.graphqlFilter(),
         after: pi.endCursor,
-        first: PAGE_SIZE,
+        first: PAGE_SIZE
       };
       const result = await firstValueFrom(
-        this.apollo.query({ query: TicketsDocument, variables: vars, fetchPolicy: 'network-only' }),
+        this.apollo.query({ query: TicketsDocument, variables: vars, fetchPolicy: 'network-only' })
       );
       const conn = result.data?.tickets;
       if (!conn) return;
-      const next = conn.edges.map((e) => e.node);
-      this.items.update((cur) => {
-        const ids = new Set(cur.map((t) => t.id));
+      const next = conn.edges.map(e => e.node);
+      this.items.update(cur => {
+        const ids = new Set(cur.map(t => t.id));
         const merged = [...cur];
         for (const t of next) {
           if (!ids.has(t.id)) merged.push(t);
@@ -104,8 +166,8 @@ export class TicketsFacade {
     await firstValueFrom(
       this.apollo.mutate({
         mutation: UpdateTicketDocument,
-        variables: vars,
-      }),
+        variables: vars
+      })
     );
     await this.loadFirst();
   }
@@ -114,8 +176,8 @@ export class TicketsFacade {
     await firstValueFrom(
       this.apollo.mutate({
         mutation: AddCommentDocument,
-        variables: { ticketId, body },
-      }),
+        variables: { ticketId, body }
+      })
     );
   }
 
@@ -125,8 +187,8 @@ export class TicketsFacade {
       this.apollo.query({
         query: TicketDocument,
         variables: vars,
-        fetchPolicy: 'network-only',
-      }),
+        fetchPolicy: 'network-only'
+      })
     );
     return res.data?.ticket ?? null;
   }
@@ -137,12 +199,12 @@ export class TicketsFacade {
       const res = await firstValueFrom(
         this.apollo.mutate({
           mutation: CreateTicketDocument,
-          variables: vars,
-        }),
+          variables: vars
+        })
       );
       const errs = (res as unknown as { errors?: Array<{ message?: string }> }).errors ?? [];
       if (errs.length) {
-        throw new Error(errs.map((e) => e.message ?? 'Unknown GraphQL error').join('\n'));
+        throw new Error(errs.map(e => e.message ?? 'Unknown GraphQL error').join('\n'));
       }
       return res.data?.createTicket.id ?? '';
     } catch (error: unknown) {
@@ -155,29 +217,26 @@ export class TicketsFacade {
         const retry = await firstValueFrom(
           this.apollo.mutate({
             mutation: CreateTicketDocument,
-            variables: { input: retryInput },
-          }),
+            variables: { input: retryInput }
+          })
         );
         return retry.data?.createTicket.id ?? '';
       }
 
       const hasAttachments = Array.isArray(input.attachmentIds) && input.attachmentIds.length > 0;
       // Backward-compatible path when an older backend schema lacks CreateTicketInput.attachmentIds.
-      if (
-        hasAttachments &&
-        message.includes('field `attachmentIds` does not exist on the type `CreateTicketInput`')
-      ) {
+      if (hasAttachments && message.includes('field `attachmentIds` does not exist on the type `CreateTicketInput`')) {
         const retryInput = { ...input };
         delete (retryInput as { attachmentIds?: string[] }).attachmentIds;
         const retry = await firstValueFrom(
           this.apollo.mutate({
             mutation: CreateTicketDocument,
-            variables: { input: retryInput },
-          }),
+            variables: { input: retryInput }
+          })
         );
         const errs = (retry as unknown as { errors?: Array<{ message?: string }> }).errors ?? [];
         if (errs.length) {
-          throw new Error(errs.map((e) => e.message ?? 'Unknown GraphQL error').join('\n'));
+          throw new Error(errs.map(e => e.message ?? 'Unknown GraphQL error').join('\n'));
         }
         return retry.data?.createTicket.id ?? '';
       }

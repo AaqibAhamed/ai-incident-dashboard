@@ -1,7 +1,6 @@
 using AiIncident.Api.Data;
 using AiIncident.Api.GraphQL;
 using AiIncident.Api.Services;
-using HotChocolate.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -53,6 +52,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
             ClockSkew = TimeSpan.FromMinutes(1)
         };
+        // Allow the JWT access token to be passed via the "access_token" query string for SignalR
+        // transports (WebSockets) where the Authorization header may not be available.
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"].FirstOrDefault();
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization(options =>
@@ -69,6 +83,15 @@ builder.Services.AddScoped<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IAiAssistant, StubAiAssistant>();
 builder.Services.AddScoped<IRefreshTokenStore, DbRefreshTokenStore>();
+
+// SignalR for realtime updates
+builder.Services.AddSignalR();
+
+// Optional Redis backplane for scaling across nodes. Configure in appsettings or environment.
+// NOTE: To enable a Redis backplane, install the package
+// Microsoft.AspNetCore.SignalR.StackExchangeRedis and then call
+// builder.Services.AddSignalR().AddStackExchangeRedis("<connection>");
+// We intentionally do not call AddStackExchangeRedis here to avoid a hard dependency in the sample project.
 
 builder.Services
     .AddGraphQLServer()
@@ -100,6 +123,9 @@ if (!app.Environment.IsEnvironment("Test"))
 
 app.MapControllers();
 app.MapGraphQL("/graphql").RequireAuthorization();
+
+// Map SignalR hubs
+app.MapHub<TicketHub>("/hubs/tickets");
 
 app.Run();
 

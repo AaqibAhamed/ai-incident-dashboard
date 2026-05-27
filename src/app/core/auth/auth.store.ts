@@ -94,6 +94,8 @@ export const AuthStore = signalStore(
   })),
 
   withMethods((store, http = inject(HttpClient), api = inject(API_CONFIG)) => {
+    // SignalRService must not be injected here to avoid circular dependency.
+    // SignalRService will observe AuthStore and start/stop itself as needed.
     // =====================================================
     // Crypto
     // =====================================================
@@ -485,6 +487,8 @@ export const AuthStore = signalStore(
         await scheduleRefresh();
 
         initializeActivityTracking();
+
+        // SignalRService will react to AuthStore state changes and start itself.
       } catch {
         performLogout();
       }

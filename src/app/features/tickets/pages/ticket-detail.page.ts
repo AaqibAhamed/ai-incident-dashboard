@@ -18,6 +18,7 @@ import { FEATURE_FLAGS } from '../../../core/tokens/feature-flags.token';
 import { TimeAgoPipe } from '../../../shared/pipes/time-ago.pipe';
 import { AiService } from '../../ai/ai.service';
 import { TicketsFacade } from '../data/tickets.facade';
+import { SignalRService } from '../../../core/signalr/signalr.service';
 
 @Component({
   selector: 'app-ticket-detail',
@@ -33,7 +34,7 @@ import { TicketsFacade } from '../data/tickets.facade';
     MatListModule,
     MatDividerModule,
     MatSnackBarModule,
-    TimeAgoPipe,
+    TimeAgoPipe
   ],
   template: `
     @if (!ticketLive()) {
@@ -83,10 +84,7 @@ import { TicketsFacade } from '../data/tickets.facade';
               <h3>Assign</h3>
               <mat-form-field appearance="outline">
                 <mat-label>Assignee</mat-label>
-                <mat-select
-                  [value]="t.assigneeId ?? ''"
-                  (selectionChange)="onAssign($event)"
-                >
+                <mat-select [value]="t.assigneeId ?? ''" (selectionChange)="onAssign($event)">
                   <mat-option value="" disabled>Select an assignee</mat-option>
                   @for (u of tenantUsers(); track u.id) {
                     <mat-option [value]="u.id">{{ u.name }} · {{ u.role }}</mat-option>
@@ -110,12 +108,7 @@ import { TicketsFacade } from '../data/tickets.facade';
               <div class="row">
                 <button mat-flat-button color="primary" type="button" (click)="post()">Post</button>
                 @if (flags.aiReply) {
-                  <button
-                    mat-stroked-button
-                    type="button"
-                    (click)="useAiDraft()"
-                    [disabled]="aiBusy()"
-                  >
+                  <button mat-stroked-button type="button" (click)="useAiDraft()" [disabled]="aiBusy()">
                     Use AI draft
                   </button>
                 }
@@ -171,12 +164,7 @@ import { TicketsFacade } from '../data/tickets.facade';
                   <p><strong>Next:</strong> {{ s.nextSteps }}</p>
                 }
                 <div class="row">
-                  <button
-                    mat-stroked-button
-                    type="button"
-                    (click)="summarize()"
-                    [disabled]="sumBusy()"
-                  >
+                  <button mat-stroked-button type="button" (click)="summarize()" [disabled]="sumBusy()">
                     Summarize ticket
                   </button>
                   @if (sumBusy()) {
@@ -308,8 +296,8 @@ import { TicketsFacade } from '../data/tickets.facade';
       .muted {
         opacity: 0.7;
       }
-    `,
-  ],
+    `
+  ]
 })
 export default class TicketDetailPage {
   readonly ticket = input<TicketQuery['ticket'] | null>(null);
@@ -324,6 +312,7 @@ export default class TicketDetailPage {
   private readonly ai = inject(AiService);
   private readonly snack = inject(MatSnackBar);
   readonly flags = inject(FEATURE_FLAGS);
+  private readonly signalr = inject(SignalRService);
 
   commentDraft = '';
 
@@ -340,11 +329,50 @@ export default class TicketDetailPage {
   constructor() {
     void this.loadTenantUsers();
 
+    // Join ticket SignalR group when viewing
+    effect(
+      () => {
+        const t = this.ticketLive();
+        if (!t) return;
+        void this.signalr.joinTicket(t.id).catch(() => {});
+      },
+      { allowSignalWrites: false }
+    );
+
+    // Refresh ticket when updates or comments arrive via SignalR
+    effect(
+      () => {
+        const upd = this.signalr.lastTicketUpdated();
+        if (!upd) return;
+        const t = this.ticketLive();
+        const payload = upd as { TenantId: string; Ticket: { id: string } } | null;
+        if (!t || !payload) return;
+        if (payload.Ticket?.id === t.id) {
+          void this.refreshTicket();
+        }
+      },
+      { allowSignalWrites: false }
+    );
+
+    effect(
+      () => {
+        const c = this.signalr.lastCommentAdded();
+        if (!c) return;
+        const t = this.ticketLive();
+        const payload = c as { TenantId: string; TicketId: string } | null;
+        if (!t || !payload) return;
+        if (payload.TicketId === t.id) {
+          void this.refreshTicket();
+        }
+      },
+      { allowSignalWrites: false }
+    );
+
     effect(
       () => {
         this.ticketLive.set(this.ticket());
       },
-      { allowSignalWrites: true },
+      { allowSignalWrites: true }
     );
 
     // Sync blob previews with ticket attachments. Do NOT read `previewUrls()` here without
@@ -356,9 +384,7 @@ export default class TicketDetailPage {
 
         untracked(() => {
           const current = this.previewUrls();
-          const keepIds = new Set(
-            attachments.filter((a) => this.isImageFile(a.fileName)).map((a) => a.id),
-          );
+          const keepIds = new Set(attachments.filter(a => this.isImageFile(a.fileName)).map(a => a.id));
 
           const next: Record<string, string> = {};
           for (const id of keepIds) {
@@ -374,7 +400,7 @@ export default class TicketDetailPage {
 
           const sameMap =
             Object.keys(next).length === Object.keys(current).length &&
-            Object.keys(next).every((k) => next[k] === current[k]);
+            Object.keys(next).every(k => next[k] === current[k]);
           if (!sameMap) {
             this.previewUrls.set(next);
           }
@@ -388,7 +414,7 @@ export default class TicketDetailPage {
           }
         });
       },
-      { allowSignalWrites: true },
+      { allowSignalWrites: true }
     );
 
     this.destroyRef.onDestroy(() => {
@@ -413,7 +439,8 @@ export default class TicketDetailPage {
     if (!t || !body) return;
     await this.facade.addComment(t.id, body);
     this.commentDraft = '';
-    await this.refreshTicket();
+    // Defer refresh to next tick to avoid ExpressionChangedAfterItHasBeenCheckedError
+    setTimeout(() => void this.refreshTicket(), 0);
   }
 
   async useAiDraft(): Promise<void> {
@@ -461,7 +488,7 @@ export default class TicketDetailPage {
     try {
       const blob = await firstValueFrom(this.http.get(url, { responseType: 'blob' }));
       const objectUrl = URL.createObjectURL(blob);
-      this.previewUrls.update((cur) => ({ ...cur, [attachmentId]: objectUrl }));
+      this.previewUrls.update(cur => ({ ...cur, [attachmentId]: objectUrl }));
     } catch {
       // fall back to raw URL if blob fetch fails
     }
@@ -473,8 +500,8 @@ export default class TicketDetailPage {
         this.apollo.query({
           query: TenantUsersDocument,
           variables: { activeOnly: true },
-          fetchPolicy: 'network-only',
-        }),
+          fetchPolicy: 'network-only'
+        })
       );
       this.tenantUsers.set(res.data?.tenantUsers ?? []);
     } catch {
@@ -508,7 +535,8 @@ export default class TicketDetailPage {
     const t = this.ticketLive();
     if (!t) return;
     const fresh = await this.facade.getTicket(t.id);
-    this.ticketLive.set(fresh);
+    // Defer setting the live signal to the next microtask so Angular CD won't error
+    Promise.resolve().then(() => this.ticketLive.set(fresh));
   }
 
   private getExt(fileName: string): string {
