@@ -73,7 +73,7 @@ public sealed class TicketHub(
       }
 
       var tenantId = Context.User?
-        .FindFirst("tenantId")
+        .FindFirst("tenant_id")
         ?.Value;
 
       if (string.IsNullOrWhiteSpace(tenantId))
@@ -154,7 +154,7 @@ public sealed class TicketHub(
       }
 
       var tenantClaim = Context.User?
-        .FindFirst("tenantId")
+        .FindFirst("tenant_id")
         ?.Value;
 
       if (string.IsNullOrWhiteSpace(tenantClaim) || tenantClaim != tenantId)
@@ -211,7 +211,7 @@ public sealed class TicketHub(
   // Internal helpers exposed to tests
   public static bool TenantClaimMatches(ClaimsPrincipal? user, string tenantId)
   {
-    var claim = user?.FindFirst("tenantId")?.Value;
+  var claim = user?.FindFirst("tenant_id")?.Value;
 
     return !string.IsNullOrWhiteSpace(claim) && string.Equals(claim, tenantId, StringComparison.Ordinal);
   }
@@ -223,7 +223,7 @@ public sealed class TicketHub(
       return false;
     }
 
-    var tenantId = user?.FindFirst("tenantId")?.Value;
+    var tenantId = user?.FindFirst("tenant_id")?.Value;
 
     if (string.IsNullOrWhiteSpace(tenantId))
     {
@@ -237,14 +237,14 @@ public sealed class TicketHub(
       var exists = await ticketExistsChecker(ticketId, tenantId);
 
       if (exists) return true;
-      logger.LogWarning("JoinTicket denied. Ticket not found. Ticket:{TicketId}", ticketId);
+      logger.LogWarning("JoinTicket denied. Ticket not found. Ticket:{tenant_id}", ticketId);
 
       return false;
 
     }
     catch (Exception ex)
     {
-      logger.LogError(ex, "Error checking ticket existence {TicketId}", ticketId);
+      logger.LogError(ex, "Error checking ticket existence {tenant_id}", ticketId);
 
       return false;
     }

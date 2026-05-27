@@ -12,7 +12,7 @@ public class TicketHubTests
         var claims = new List<Claim>();
         if (tenantId != null)
         {
-            claims.Add(new Claim("tenantId", tenantId));
+            claims.Add(new Claim("tenant_id", tenantId));
         }
 
         var identity = new ClaimsIdentity(claims, "test");
