@@ -69,15 +69,69 @@ export class TicketsFacade {
       });
     });
 
-    // React to ticket updated
-    type TicketUpdatedEvent = { BroadcastId?: string; TenantId: string; Ticket: TicketListNode };
+    // React to ticket updated — merge key fields into list node so UI updates reliably
+    type TicketUpdatedEvent = { BroadcastId?: string; TenantId: string; Ticket?: Partial<TicketListNode> | null };
     effect(() => {
       const ev = this.signalr.lastTicketUpdated() as TicketUpdatedEvent | null;
       if (!ev) return;
       untracked(() => {
-        const t = ev.Ticket;
-        if (!t) return;
-        this.items.update(cur => cur.map(x => (x.id === t.id ? t : x)));
+        const incoming = ev.Ticket;
+        if (!incoming || !incoming.id) return;
+
+        const ticketId = incoming.id;
+
+        this.items.update(cur => {
+          const idx = cur.findIndex(x => x.id === ticketId);
+          if (idx < 0) return cur;
+
+          const node = cur[idx];
+
+          // Merge only the fields we care about for the list view to avoid accidental shape differences
+          const inc = incoming as Partial<TicketListNode> & {
+            assignee?: { id?: string | null; name?: string | null } | null;
+            assigneeId?: string | null;
+            assigneeName?: string | null;
+          };
+
+          // Normalize status: backend may send numeric enum values, but the UI
+          // expects the GraphQL string values ('OPEN', 'IN_PROGRESS', ...).
+          const STATUS_MAP = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const;
+          const normalizeStatus = (v: unknown): TicketListNode['status'] => {
+            if (typeof v === 'number' && Number.isFinite(v)) {
+              const n = Number(v);
+              return (STATUS_MAP[n] ?? node.status) as TicketListNode['status'];
+            }
+            if (typeof v === 'string' && v) return v as TicketListNode['status'];
+            return node.status;
+          };
+
+          const patched: TicketListNode = {
+            ...node,
+            // prefer incoming values when present (normalized)
+            status: normalizeStatus(inc.status ?? node.status),
+            updatedAt: inc.updatedAt ?? node.updatedAt,
+            // assignee may come as nested object or separate fields; try both
+            assignee:
+              inc.assignee ??
+              ((inc.assigneeId ?? inc.assigneeName)
+                ? {
+                    id: inc.assigneeId ?? node.assignee?.id ?? null,
+                    name: inc.assigneeName ?? node.assignee?.name ?? null
+                  }
+                : node.assignee)
+          } as TicketListNode;
+
+          const next = [...cur];
+          next[idx] = patched;
+
+          console.debug('[SignalR] TicketUpdated merged into list node', ticketId, 'patched:', {
+            status: patched.status,
+            updatedAt: patched.updatedAt,
+            assignee: patched.assignee
+          });
+
+          return next;
+        });
       });
     });
 

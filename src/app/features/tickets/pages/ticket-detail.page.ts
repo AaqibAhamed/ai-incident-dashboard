@@ -377,14 +377,26 @@ export default class TicketDetailPage {
       }
     });
 
-    // Refresh ticket when updates or comments arrive via SignalR
+    // Refresh or apply ticket when updates arrive via SignalR
     effect(() => {
       const upd = this.signalr.lastTicketUpdated();
       if (!upd) return;
       const t = this.ticketLive();
-      const payload = upd as { TenantId: string; Ticket: { id: string } } | null;
-      if (!t || !payload) return;
-      if (payload.Ticket?.id === t.id) {
+      const payload = upd as { TenantId: string; Ticket?: Partial<TicketQuery['ticket']> | null } | null;
+      if (!t || !payload || !payload.Ticket) return;
+
+      // If the payload contains a full Ticket object (or at least key fields like status/updatedAt),
+      // apply it immediately to the live signal to reflect status changes in real time.
+      const incoming = payload.Ticket;
+      if (incoming.id === t.id) {
+        const hasRichData = 'status' in incoming || 'updatedAt' in incoming || 'title' in incoming;
+        if (hasRichData) {
+          // Apply the incoming ticket object directly (defer to microtask to avoid CD errors)
+          Promise.resolve().then(() => this.ticketLive.set(incoming as TicketQuery['ticket']));
+          return;
+        }
+
+        // Otherwise fall back to a full fetch to ensure we have the canonical shape
         void this.refreshTicket();
       }
     });
