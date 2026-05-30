@@ -271,10 +271,20 @@ public sealed class Mutation(ILogger<Mutation> logger)
       .FirstAsync(x => x.Id == id && x.TenantId == tenantId, cancellationToken);
 
     var assignBroadcastId = Guid.NewGuid().ToString();
+    var assigneeDto = new AssigneeDto(user.Id, user.Name);
     try
     {
       _ = hub.Clients.Group($"tenant:{tenantId}").SendAsync("TicketAssigned",
-        new TicketAssignedEvent(assignBroadcastId, tenantId, id, user.Id));
+        new
+        {
+          BroadcastId = assignBroadcastId,
+          TenantId = tenantId,
+          TicketId = id,
+          Assignee = assigneeDto,
+          AssigneeId = user.Id,
+          AssigneeName = user.Name,
+          ticket.UpdatedAt
+        });
     }
     catch (Exception ex)
     {
@@ -284,7 +294,16 @@ public sealed class Mutation(ILogger<Mutation> logger)
     try
     {
       _ = hub.Clients.Group($"ticket:{id}").SendAsync("TicketAssigned",
-        new TicketAssignedEvent(assignBroadcastId, tenantId, id, user.Id));
+        new
+        {
+          BroadcastId = assignBroadcastId,
+          TenantId = tenantId,
+          TicketId = id,
+          Assignee = assigneeDto,
+          AssigneeId = user.Id,
+          AssigneeName = user.Name,
+          ticket.UpdatedAt
+        });
     }
     catch (Exception ex)
     {

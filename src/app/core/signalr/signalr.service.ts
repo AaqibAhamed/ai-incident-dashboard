@@ -170,11 +170,20 @@ export class SignalRService {
     this.hub.on('TicketAssigned', payload => {
       const broadcastId = payload?.BroadcastId ?? payload?.broadcastId ?? null;
       if (broadcastId && this.seenBroadcast(broadcastId)) return;
+      const assigneeId =
+        payload?.AssigneeId ?? payload?.assigneeId ?? payload?.Assignee?.id ?? payload?.Assignee?.Id ?? null;
+      const assigneeName =
+        payload?.AssigneeName ?? payload?.assigneeName ?? payload?.Assignee?.name ?? payload?.Assignee?.Name ?? null;
+      const updatedAt = payload?.UpdatedAt ?? payload?.updatedAt ?? payload?.Ticket?.updatedAt ?? null;
+
       const normalized = {
         BroadcastId: broadcastId,
         TenantId: payload?.TenantId ?? payload?.tenantId ?? null,
         TicketId: payload?.TicketId ?? payload?.ticketId ?? payload?.ticket?.id ?? null,
-        AssigneeId: payload?.AssigneeId ?? payload?.assigneeId ?? payload?.Assignee?.id ?? null
+        AssigneeId: assigneeId,
+        AssigneeName: assigneeName,
+        Assignee: assigneeId || assigneeName ? { id: assigneeId, name: assigneeName } : null,
+        UpdatedAt: updatedAt
       };
       console.debug('[SignalR] received TicketAssigned payload:', normalized);
       this.lastTicketAssigned.set(normalized);

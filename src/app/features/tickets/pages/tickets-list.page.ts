@@ -33,7 +33,7 @@ import { TicketsFacade } from '../data/tickets.facade';
     MatProgressSpinnerModule,
     InfiniteScrollDirective,
     TimeAgoPipe,
-    SlaStatusPipe,
+    SlaStatusPipe
   ],
   template: `
     <h1>Agent queue</h1>
@@ -47,9 +47,7 @@ import { TicketsFacade } from '../data/tickets.facade';
       </mat-slide-toggle>
       <button mat-stroked-button type="button" (click)="apply()">Apply filters</button>
       <button mat-button type="button" (click)="reset()">Reset</button>
-      <span class="badge" [class.on]="filters.activeFilterCount() > 0">
-        {{ filters.activeFilterCount() }} active
-      </span>
+      <span class="badge" [class.on]="filters.activeFilterCount() > 0"> {{ filters.activeFilterCount() }} active </span>
     </div>
     @if (facade.loading() && !facade.items().length) {
       <mat-spinner diameter="40" />
@@ -80,6 +78,10 @@ import { TicketsFacade } from '../data/tickets.facade';
                         {{ t.slaBreached | slaStatus: t.slaDueAt }}
                       </span>
                     </div>
+                    <div class="assignee" [class.muted]="!assigneeDisplay(t)">
+                      {{ assigneeDisplay(t) ? 'Assigned to ' + assigneeDisplay(t) : 'Unassigned' }}
+                    </div>
+
                     <div class="sub">Updated {{ t.updatedAt | timeAgo }}</div>
                   </mat-card-content>
                 </mat-card>
@@ -169,8 +171,8 @@ import { TicketsFacade } from '../data/tickets.facade';
       .sentinel {
         height: 24px;
       }
-    `,
-  ],
+    `
+  ]
 })
 export default class TicketsListPage implements OnInit {
   readonly facade = inject(TicketsFacade);
@@ -180,29 +182,34 @@ export default class TicketsListPage implements OnInit {
 
   readonly columns = computed(() => {
     const items = this.facade.items();
-    const open = items.filter((t) => t.status === 'OPEN');
-    const prog = items.filter((t) => t.status === 'IN_PROGRESS');
-    const done = items.filter((t) => t.status === 'RESOLVED' || t.status === 'CLOSED');
+    const open = items.filter(t => t.status === 'OPEN');
+    const prog = items.filter(t => t.status === 'IN_PROGRESS');
+    const done = items.filter(t => t.status === 'RESOLVED' || t.status === 'CLOSED');
     return [
       { id: 'open', label: 'Open', targetStatus: 'OPEN' as TicketStatus, items: open },
       {
         id: 'prog',
         label: 'In progress',
         targetStatus: 'IN_PROGRESS' as TicketStatus,
-        items: prog,
+        items: prog
       },
       {
         id: 'done',
         label: 'Resolved / closed',
         targetStatus: 'RESOLVED' as TicketStatus,
-        items: done,
-      },
+        items: done
+      }
     ];
   });
 
   ngOnInit(): void {
     this.searchDraft = this.filters.search();
     void this.facade.loadFirst();
+  }
+
+  assigneeDisplay(t: TicketListNode): string | null {
+    // Prefer the strongly-typed assignee name from the node, fallback to runtime-injected assigneeName
+    return t.assignee?.name ?? (t as unknown as { assigneeName?: string }).assigneeName ?? null;
   }
 
   onSla(v: boolean): void {

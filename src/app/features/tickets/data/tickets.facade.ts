@@ -125,6 +125,11 @@ export class TicketsFacade {
       TenantId: string;
       TicketId: string;
       AssigneeId?: string | null;
+      AssigneeName?: string | null;
+      // Backend may include updatedAt or Ticket with updatedAt
+      updatedAt?: string | null;
+      UpdatedAt?: string | null;
+      Ticket?: { updatedAt?: string | null } | null;
     };
     effect(() => {
       const ev = this.signalr.lastTicketAssigned() as TicketAssignedEvent | null;
@@ -132,6 +137,7 @@ export class TicketsFacade {
       untracked(() => {
         const ticketId = ev.TicketId;
         const assigneeId = ev.AssigneeId ?? null;
+        const assigneeName = ev.AssigneeName ?? ev.AssigneeName ?? null;
         if (!ticketId) return;
 
         this.items.update(cur => {
@@ -140,9 +146,25 @@ export class TicketsFacade {
 
           const node = cur[idx];
 
-          // Patch assigneeId and updatedAt (use now as fallback)
-          const updatedAt = new Date().toISOString();
-          const patched = { ...(node as unknown as TicketListNode), assigneeId, updatedAt } as TicketListNode;
+          // Prefer server-provided timestamp if present (either top-level or inside Ticket)
+          const serverUpdatedAt = (ev.updatedAt ?? ev.Ticket?.updatedAt) as string | undefined | null;
+          const updatedAt = serverUpdatedAt ?? new Date().toISOString();
+
+          // Preserve existing assignee if payload didn't include new assignee info
+          const existingAssignee = (node as unknown as { assignee?: { id?: string | null; name?: string | null } })
+            .assignee;
+
+          const hasAssigneeInfo = assigneeId != null || assigneeName != null;
+
+          const nextAssignee = hasAssigneeInfo
+            ? { id: assigneeId ?? existingAssignee?.id ?? null, name: assigneeName ?? existingAssignee?.name ?? null }
+            : (existingAssignee ?? null);
+
+          const patched = {
+            ...(node as unknown as TicketListNode),
+            assignee: nextAssignee,
+            updatedAt
+          } as unknown as TicketListNode;
 
           // Move patched node to front
           const next = [patched, ...cur.filter((t, i) => i !== idx)];
