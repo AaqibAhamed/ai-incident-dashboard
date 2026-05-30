@@ -389,6 +389,18 @@ export default class TicketDetailPage {
       }
     });
 
+    // Refresh ticket when assignment events arrive via SignalR
+    effect(() => {
+      const ev = this.signalr.lastTicketAssigned();
+      if (!ev) return;
+      const t = this.ticketLive();
+      const payload = ev as { TenantId: string; TicketId: string } | null;
+      if (!t || !payload) return;
+      if (payload.TicketId === t.id) {
+        void this.refreshTicket();
+      }
+    });
+
     effect(() => {
       const c = this.signalr.lastCommentAdded();
       if (!c) return;

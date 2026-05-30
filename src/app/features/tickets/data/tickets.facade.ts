@@ -118,6 +118,41 @@ export class TicketsFacade {
         });
       });
     });
+
+    // React to ticket assigned — update single ticket node if present
+    type TicketAssignedEvent = {
+      BroadcastId?: string;
+      TenantId: string;
+      TicketId: string;
+      AssigneeId?: string | null;
+    };
+    effect(() => {
+      const ev = this.signalr.lastTicketAssigned() as TicketAssignedEvent | null;
+      if (!ev) return;
+      untracked(() => {
+        const ticketId = ev.TicketId;
+        const assigneeId = ev.AssigneeId ?? null;
+        if (!ticketId) return;
+
+        this.items.update(cur => {
+          const idx = cur.findIndex(t => t.id === ticketId);
+          if (idx < 0) return cur;
+
+          const node = cur[idx];
+
+          // Patch assigneeId and updatedAt (use now as fallback)
+          const updatedAt = new Date().toISOString();
+          const patched = { ...(node as unknown as TicketListNode), assigneeId, updatedAt } as TicketListNode;
+
+          // Move patched node to front
+          const next = [patched, ...cur.filter((t, i) => i !== idx)];
+
+          console.debug('[SignalR] TicketAssigned patched list node', ticketId, 'assignee->', assigneeId);
+
+          return next;
+        });
+      });
+    });
   }
 
   async loadFirst(): Promise<void> {
