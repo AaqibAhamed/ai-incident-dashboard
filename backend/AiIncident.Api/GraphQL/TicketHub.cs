@@ -72,9 +72,7 @@ public sealed class TicketHub(
         return;
       }
 
-      var tenantId = Context.User?
-        .FindFirst("tenant_id")
-        ?.Value;
+      var tenantId = GetTenantClaim(Context.User);
 
       if (string.IsNullOrWhiteSpace(tenantId))
       {
@@ -153,9 +151,7 @@ public sealed class TicketHub(
         return;
       }
 
-      var tenantClaim = Context.User?
-        .FindFirst("tenant_id")
-        ?.Value;
+      var tenantClaim = GetTenantClaim(Context.User);
 
       if (string.IsNullOrWhiteSpace(tenantClaim) || tenantClaim != tenantId)
       {
@@ -211,19 +207,20 @@ public sealed class TicketHub(
   // Internal helpers exposed to tests
   public static bool TenantClaimMatches(ClaimsPrincipal? user, string tenantId)
   {
-  var claim = user?.FindFirst("tenant_id")?.Value;
+    var claim = GetTenantClaim(user);
 
     return !string.IsNullOrWhiteSpace(claim) && string.Equals(claim, tenantId, StringComparison.Ordinal);
   }
 
-  public static async Task<bool> CanJoinTicket(ClaimsPrincipal? user, string ticketId, Func<string, string, Task<bool>> ticketExistsChecker, ILogger logger)
+  public static async Task<bool> CanJoinTicket(ClaimsPrincipal? user, string ticketId,
+    Func<string, string, Task<bool>> ticketExistsChecker, ILogger logger)
   {
     if (string.IsNullOrWhiteSpace(ticketId))
     {
       return false;
     }
 
-    var tenantId = user?.FindFirst("tenant_id")?.Value;
+    var tenantId = GetTenantClaim(user);
 
     if (string.IsNullOrWhiteSpace(tenantId))
     {
@@ -237,16 +234,28 @@ public sealed class TicketHub(
       var exists = await ticketExistsChecker(ticketId, tenantId);
 
       if (exists) return true;
-      logger.LogWarning("JoinTicket denied. Ticket not found. Ticket:{tenant_id}", ticketId);
+
+      logger.LogWarning("JoinTicket denied. Ticket not found. Ticket:{TicketId}", ticketId);
 
       return false;
-
     }
     catch (Exception ex)
     {
-      logger.LogError(ex, "Error checking ticket existence {tenant_id}", ticketId);
+      logger.LogError(ex, "Error checking ticket existence {TicketId}", ticketId);
 
       return false;
     }
+  }
+
+  private static string? GetTenantClaim(ClaimsPrincipal? user)
+  {
+    if (user is null) return null;
+
+    // Accept common claim names used by different token issuers
+    var claim = user.FindFirst("tenant_id")?.Value
+                ?? user.FindFirst("tenantId")?.Value
+                ?? user.FindFirst("tenant")?.Value;
+
+    return string.IsNullOrWhiteSpace(claim) ? null : claim;
   }
 }

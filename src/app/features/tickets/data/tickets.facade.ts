@@ -4,6 +4,7 @@ import { Apollo } from 'apollo-angular';
 import { firstValueFrom } from 'rxjs';
 import {
   AddCommentDocument,
+  type AddCommentMutation,
   AssignTicketDocument,
   type AssignTicketMutationVariables,
   CreateTicketDocument,
@@ -54,7 +55,7 @@ export class TicketsFacade {
   // Register effects synchronously so they're created inside the injection context.
   private registerSignalREffects(): void {
     // React to ticket created
-    type TicketCreatedEvent = { TenantId: string; Ticket: TicketListNode };
+    type TicketCreatedEvent = { BroadcastId?: string; TenantId: string; Ticket: TicketListNode };
     effect(() => {
       const ev = this.signalr.lastTicketCreated() as TicketCreatedEvent | null;
       if (!ev) return;
@@ -69,7 +70,7 @@ export class TicketsFacade {
     });
 
     // React to ticket updated
-    type TicketUpdatedEvent = { TenantId: string; Ticket: TicketListNode };
+    type TicketUpdatedEvent = { BroadcastId?: string; TenantId: string; Ticket: TicketListNode };
     effect(() => {
       const ev = this.signalr.lastTicketUpdated() as TicketUpdatedEvent | null;
       if (!ev) return;
@@ -81,7 +82,7 @@ export class TicketsFacade {
     });
 
     // React to comment added — update single ticket cache if present
-    type CommentAddedEvent = { TenantId: string; TicketId: string; Comment: unknown };
+    type CommentAddedEvent = { BroadcastId?: string; TenantId: string; TicketId: string; Comment: unknown };
     effect(() => {
       const ev = this.signalr.lastCommentAdded() as CommentAddedEvent | null;
       if (!ev) return;
@@ -89,7 +90,32 @@ export class TicketsFacade {
         const ticketId = ev.TicketId;
         const comment = ev.Comment;
         if (!ticketId || !comment) return;
-        // Optional: we could fetch updated ticket or patch comments if we stored full ticket cache here
+        // If we have this ticket in the list, update its updatedAt so lists reflect recent activity.
+        this.items.update(cur => {
+          const idx = cur.findIndex(t => t.id === ticketId);
+          if (idx < 0) return cur;
+
+          const node = cur[idx];
+
+          // Prefer comment.createdAt if available, else use current ISO string
+          const createdAt = (comment as { createdAt?: string | null })?.createdAt as unknown as string | undefined;
+          const updatedAt = createdAt ?? new Date().toISOString();
+
+          // If the node already has this updatedAt and is already first, do nothing
+          if (String(node.updatedAt) === String(updatedAt) && idx === 0) {
+            console.debug('[SignalR] CommentAdded for', ticketId, 'but list node already up-to-date and first');
+            return cur;
+          }
+
+          const patched = { ...node, updatedAt } as TicketListNode;
+
+          // Move patched node to front (while preserving other items and avoiding duplicates)
+          const next = [patched, ...cur.filter((t, i) => i !== idx)];
+
+          console.debug('[SignalR] moved ticket to front and patched updatedAt', ticketId, '->', updatedAt);
+
+          return next;
+        });
       });
     });
   }
@@ -172,13 +198,15 @@ export class TicketsFacade {
     await this.loadFirst();
   }
 
-  async addComment(ticketId: string, body: string): Promise<void> {
-    await firstValueFrom(
+  async addComment(ticketId: string, body: string): Promise<AddCommentMutation['addComment']> {
+    const res = await firstValueFrom(
       this.apollo.mutate({
         mutation: AddCommentDocument,
         variables: { ticketId, body }
       })
     );
+
+    return (res.data as unknown as AddCommentMutation)?.addComment;
   }
 
   async getTicket(id: string): Promise<TicketQuery['ticket'] | null> {

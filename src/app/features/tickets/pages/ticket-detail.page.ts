@@ -27,6 +27,9 @@ import { FEATURE_FLAGS } from '../../../core/tokens/feature-flags.token';
 import { TimeAgoPipe } from '../../../shared/pipes/time-ago.pipe';
 import { AiService } from '../../ai/ai.service';
 import { TicketsFacade } from '../data/tickets.facade';
+
+// Derive the in-query comment shape from generated TicketQuery type
+type TicketComment = NonNullable<TicketQuery['ticket']>['comments'][number];
 import { SignalRService } from '../../../core/signalr/signalr.service';
 
 @Component({
@@ -393,6 +396,18 @@ export default class TicketDetailPage {
       const payload = c as { TenantId: string; TicketId: string } | null;
       if (!t || !payload) return;
       if (payload.TicketId === t.id) {
+        // If the comment already exists (optimistically added from mutation), skip refresh
+        const incomingCommentId = (c as { Comment?: { id?: string } })?.Comment?.id;
+        const existing = incomingCommentId ? t.comments.find(cm => cm.id === incomingCommentId) : undefined;
+        if (existing) {
+          console.debug(
+            '[SignalR] CommentAdded received but comment already present, ignoring. CommentId:',
+            incomingCommentId
+          );
+          return;
+        }
+
+        // If SignalR fires but we don't have the comment locally, refresh
         void this.refreshTicket();
       }
     });
@@ -513,16 +528,38 @@ export default class TicketDetailPage {
     }
 
     try {
-      await this.facade.addComment(t.id, body);
+      const saved = await this.facade.addComment(t.id, body);
+
+      // Optimistically patch the local ticket state with the returned comment to avoid a full refetch
+      queueMicrotask(() => {
+        const cur = this.ticketLive();
+        if (!cur) return;
+        // Append comment if it's not already present
+        const already = cur.comments.find(cm => cm.id === saved.id);
+        if (!already) {
+          const updated = {
+            ...cur,
+            comments: [...cur.comments, saved as TicketComment],
+            updatedAt: saved.createdAt
+          };
+          this.ticketLive.set(updated);
+        } else {
+          console.debug('[Comment] mutation returned comment already present', saved.id);
+        }
+      });
 
       this.commentDraft.set('');
 
-      // Refresh immediately for current tab
-      await this.refreshTicket();
-    } catch {
+      // If SignalR is not connected, log that we've added the comment locally and rely on mutation result
+      if (!this.signalr.connected()) {
+        console.info('[SignalR] not connected — comment added locally from mutation result. CommentId:', saved.id);
+      }
+    } catch (err) {
+      // If SignalR failed but mutation succeeded, addComment() would have returned; this catch is for mutation failure
       this.snack.open('Failed to post comment.', 'OK', {
         duration: 4000
       });
+      console.error('[Comment] failed to post comment', err);
     }
   }
   async useAiDraft(): Promise<void> {

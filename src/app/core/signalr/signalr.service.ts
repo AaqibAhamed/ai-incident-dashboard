@@ -47,6 +47,49 @@ export class SignalRService {
 
   readonly lastCommentAdded = signal<unknown | null>(null);
 
+  // Dedupe using explicit BroadcastId sent by the server. Share seen IDs across
+  // tabs using BroadcastChannel for cross-tab dedupe.
+  private readonly seenBroadcasts = new Map<string, number>();
+  private readonly broadcastTtlMs = 30_000; // keep seen ids for 30s
+  private readonly bc: BroadcastChannel | null =
+    typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('aid-broadcasts') : null;
+
+  constructor() {
+    // Listen for cross-tab broadcast id announcements
+    if (this.bc) {
+      this.bc.onmessage = (ev: MessageEvent) => {
+        const id = ev.data as string | undefined;
+        if (id) {
+          this.seenBroadcasts.set(id, Date.now());
+        }
+      };
+    }
+  }
+
+  private seenBroadcast(broadcastId: string): boolean {
+    if (!broadcastId) return false;
+    const now = Date.now();
+    const seenAt = this.seenBroadcasts.get(broadcastId);
+    if (seenAt && now - seenAt < this.broadcastTtlMs) return true;
+    // mark seen and announce to other tabs
+    this.seenBroadcasts.set(broadcastId, now);
+    try {
+      this.bc?.postMessage(broadcastId);
+    } catch {
+      // best-effort
+    }
+    return false;
+  }
+
+  private cleanupOldBroadcasts(): void {
+    const now = Date.now();
+    for (const [k, ts] of Array.from(this.seenBroadcasts.entries())) {
+      if (now - ts > this.broadcastTtlMs * 2) {
+        this.seenBroadcasts.delete(k);
+      }
+    }
+  }
+
   // --------------------------------------------------------------------------
   // Connection Builder
   // --------------------------------------------------------------------------
@@ -101,19 +144,53 @@ export class SignalRService {
     // ----------------------------------------------------------------------
 
     this.hub.on('TicketCreated', payload => {
-      this.lastTicketCreated.set(payload);
+      const broadcastId = payload?.BroadcastId ?? payload?.broadcastId ?? null;
+      if (broadcastId && this.seenBroadcast(broadcastId)) return;
+      const normalized = {
+        BroadcastId: broadcastId,
+        TenantId: payload?.TenantId ?? payload?.tenantId ?? null,
+        Ticket: payload?.Ticket ?? payload?.ticket ?? null
+      };
+      console.debug('[SignalR] received TicketCreated payload:', normalized);
+      this.lastTicketCreated.set(normalized);
     });
 
     this.hub.on('TicketUpdated', payload => {
-      this.lastTicketUpdated.set(payload);
+      const broadcastId = payload?.BroadcastId ?? payload?.broadcastId ?? null;
+      if (broadcastId && this.seenBroadcast(broadcastId)) return;
+      const normalized = {
+        BroadcastId: broadcastId,
+        TenantId: payload?.TenantId ?? payload?.tenantId ?? null,
+        Ticket: payload?.Ticket ?? payload?.ticket ?? null
+      };
+      console.debug('[SignalR] received TicketUpdated payload:', normalized);
+      this.lastTicketUpdated.set(normalized);
     });
 
     this.hub.on('TicketAssigned', payload => {
-      this.lastTicketAssigned.set(payload);
+      const broadcastId = payload?.BroadcastId ?? payload?.broadcastId ?? null;
+      if (broadcastId && this.seenBroadcast(broadcastId)) return;
+      const normalized = {
+        BroadcastId: broadcastId,
+        TenantId: payload?.TenantId ?? payload?.tenantId ?? null,
+        TicketId: payload?.TicketId ?? payload?.ticketId ?? payload?.ticket?.id ?? null,
+        AssigneeId: payload?.AssigneeId ?? payload?.assigneeId ?? payload?.Assignee?.id ?? null
+      };
+      console.debug('[SignalR] received TicketAssigned payload:', normalized);
+      this.lastTicketAssigned.set(normalized);
     });
 
     this.hub.on('CommentAdded', payload => {
-      this.lastCommentAdded.set(payload);
+      const broadcastId = payload?.BroadcastId ?? payload?.broadcastId ?? null;
+      if (broadcastId && this.seenBroadcast(broadcastId)) return;
+      const normalized = {
+        BroadcastId: broadcastId,
+        TenantId: payload?.TenantId ?? payload?.tenantId ?? null,
+        TicketId: payload?.TicketId ?? payload?.ticketId ?? payload?.comment?.ticketId ?? null,
+        Comment: payload?.Comment ?? payload?.comment ?? null
+      };
+      console.debug('[SignalR] received CommentAdded payload:', normalized);
+      this.lastCommentAdded.set(normalized);
     });
 
     // ----------------------------------------------------------------------
@@ -159,9 +236,13 @@ export class SignalRService {
       const tenant = auth.tenant();
 
       if (tenant?.id) {
-        await this.hub.invoke('JoinTenant', tenant.id);
+        try {
+          await this.hub.invoke('JoinTenant', tenant.id);
 
-        console.debug('[SignalR] joined tenant group', tenant.id);
+          console.debug('[SignalR] joined tenant group', tenant.id);
+        } catch (err) {
+          console.warn('[SignalR] failed to join tenant group', tenant.id, err);
+        }
       }
 
       // Process queued joins
@@ -275,6 +356,7 @@ export class SignalRService {
     const uniqueTicketIds = [...new Set(ticketIds)];
 
     for (const ticketId of uniqueTicketIds) {
+      console.debug('[SignalR] rejoinGroups attempting join for', ticketId);
       try {
         await this.hub.invoke('JoinTicket', ticketId);
 
