@@ -75,6 +75,7 @@ const emailLocalPartPattern = /^(?:[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9])$/i;
 
 @Component({
   selector: 'app-platoform-tenant',
+  standalone: true,
   imports: [
     NgTemplateOutlet,
     ReactiveFormsModule,
