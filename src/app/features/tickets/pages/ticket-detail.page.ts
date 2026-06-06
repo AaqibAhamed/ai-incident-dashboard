@@ -150,7 +150,7 @@ import { SignalRService } from '../../../core/signalr/signalr.service';
               </mat-list>
             </mat-card-content>
           </mat-card>
-          @if (t.relatedTicketIds.length) {
+          @if (t.relatedTicketIds) {
             <mat-card class="mt surface-card" appearance="outlined">
               <mat-card-header>
                 <mat-card-title>Related</mat-card-title>

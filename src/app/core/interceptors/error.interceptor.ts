@@ -15,6 +15,6 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         snack.open(msg, 'Dismiss', { duration: 5000 });
       }
       return throwError(() => err);
-    }),
+    })
   );
 };
