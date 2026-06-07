@@ -11,70 +11,82 @@ using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers()
-    .AddJsonOptions(options =>
-    {
-        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-    });
+  .AddJsonOptions(options => { options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()); });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("frontend", policy =>
-    {
-        policy.WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? ["http://localhost:4200"])
-            .AllowAnyHeader()
-            .AllowAnyMethod();
-    });
+  options.AddPolicy("frontend", policy =>
+  {
+    policy.WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? ["http://localhost:4200"])
+      .AllowAnyHeader()
+      .AllowAnyMethod()
+      .AllowCredentials();
+  });
 });
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    var configured = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=data/app.db";
-    var dbPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(builder.Environment.ContentRootPath, "..", "data", "app.db"));
-    var connectionString = configured.Contains("Data Source=", StringComparison.OrdinalIgnoreCase)
-        ? $"Data Source={dbPath}"
-        : configured;
-    options.UseSqlite(connectionString);
+  var configured = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=data/app.db";
+  var dbPath =
+    System.IO.Path.GetFullPath(System.IO.Path.Combine(builder.Environment.ContentRootPath, "..", "data", "app.db"));
+  var connectionString = configured.Contains("Data Source=", StringComparison.OrdinalIgnoreCase)
+    ? $"Data Source={dbPath}"
+    : configured;
+  options.UseSqlite(connectionString);
 });
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+  .AddJwtBearer(options =>
+  {
+    var signingKey = builder.Configuration["Jwt:SigningKey"] ?? "dev-only-signing-key-change-me";
+    options.TokenValidationParameters = new TokenValidationParameters
     {
-        var signingKey = builder.Configuration["Jwt:SigningKey"] ?? "dev-only-signing-key-change-me";
-        options.TokenValidationParameters = new TokenValidationParameters
+      ValidateIssuer = true,
+      ValidateAudience = true,
+      ValidateIssuerSigningKey = true,
+      ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "ai-incident-api",
+      ValidAudience = builder.Configuration["Jwt:Audience"] ?? "ai-incident-dashboard-spa",
+      IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
+      ClockSkew = TimeSpan.FromMinutes(1)
+    };
+    // Allow the JWT access token to be passed via the "access_token" query string for SignalR
+    // transports (WebSockets) where the Authorization header may not be available.
+    options.Events = new JwtBearerEvents
+    {
+      OnMessageReceived = context =>
+      {
+        var accessToken = context.Request.Query["access_token"].FirstOrDefault();
+        var path = context.HttpContext.Request.Path;
+        // Prefer token from query string for SignalR transports
+        if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
         {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "ai-incident-api",
-            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "ai-incident-dashboard-spa",
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
-            ClockSkew = TimeSpan.FromMinutes(1)
-        };
-        // Allow the JWT access token to be passed via the "access_token" query string for SignalR
-        // transports (WebSockets) where the Authorization header may not be available.
-        options.Events = new JwtBearerEvents
+          context.Token = accessToken;
+          return Task.CompletedTask;
+        }
+
+        // If no token from query, try cookie (for standard HTTP requests or when client stores token in HttpOnly cookie)
+        if (string.IsNullOrEmpty(context.Token))
         {
-            OnMessageReceived = context =>
-            {
-                var accessToken = context.Request.Query["access_token"].FirstOrDefault();
-                var path = context.HttpContext.Request.Path;
-                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
-                {
-                    context.Token = accessToken;
-                }
-                return Task.CompletedTask;
-            }
-        };
-    });
+          var cookieToken = context.Request.Cookies["accessToken"];
+          if (!string.IsNullOrEmpty(cookieToken))
+          {
+            context.Token = cookieToken;
+          }
+        }
+
+        return Task.CompletedTask;
+      }
+    };
+  });
 
 builder.Services.AddAuthorization(options =>
 {
-    options.FallbackPolicy = new AuthorizationPolicyBuilder()
-        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
-        .RequireAuthenticatedUser()
-        .Build();
+  options.FallbackPolicy = new AuthorizationPolicyBuilder()
+    .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+    .RequireAuthenticatedUser()
+    .Build();
 });
 
 builder.Services.AddHttpContextAccessor();
@@ -94,16 +106,16 @@ builder.Services.AddSignalR();
 // We intentionally do not call AddStackExchangeRedis here to avoid a hard dependency in the sample project.
 
 builder.Services
-    .AddGraphQLServer()
-    .AddAuthorization()
-    .AddQueryType<Query>()
-    .AddMutationType<Mutation>();
+  .AddGraphQLServer()
+  .AddAuthorization()
+  .AddQueryType<Query>()
+  .AddMutationType<Mutation>();
 
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+  app.MapOpenApi();
 }
 
 app.UseCors("frontend");
@@ -112,13 +124,13 @@ app.UseAuthorization();
 
 if (!app.Environment.IsEnvironment("Test"))
 {
-    using (var scope = app.Services.CreateScope())
-    {
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
-        db.Database.EnsureCreated();
-        AppSeeder.Seed(db, hasher);
-    }
+  using (var scope = app.Services.CreateScope())
+  {
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+    db.Database.EnsureCreated();
+    AppSeeder.Seed(db, hasher);
+  }
 }
 
 app.MapControllers();

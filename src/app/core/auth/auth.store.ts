@@ -42,6 +42,9 @@ type AuthState = {
 
   refreshToken: string | null;
 
+  // Unix ms timestamp when access token expires (provided by server)
+  accessTokenExpiresAt: number | null;
+
   isIdle: boolean;
 
   initialized: boolean;
@@ -53,9 +56,12 @@ export interface LoginCredentials {
 }
 
 interface LoginResponse {
-  accessToken: string;
+  accessToken?: string;
 
-  refreshToken: string;
+  refreshToken?: string;
+
+  // Unix ms timestamp when access token expires
+  accessTokenExpiresAt?: number;
 
   user: SessionUser;
 
@@ -78,13 +84,16 @@ export const AuthStore = signalStore(
 
     refreshToken: null,
 
+    accessTokenExpiresAt: null,
+
     isIdle: false,
 
     initialized: false
   }),
 
   withComputed(store => ({
-    isAuthenticated: computed(() => !!store.accessToken()),
+    // Authentication is better derived from presence of user data when tokens are HttpOnly cookies
+    isAuthenticated: computed(() => !!store.user()),
 
     roles: computed(() => (store.user() ? [store.user()!.role] : ([] as UserRole[]))),
 
@@ -223,7 +232,9 @@ export const AuthStore = signalStore(
 
           accessToken: store.accessToken(),
 
-          refreshToken: store.refreshToken()
+          refreshToken: store.refreshToken(),
+
+          accessTokenExpiresAt: store.accessTokenExpiresAt()
         };
 
         const crypto = await getCrypto();
@@ -367,7 +378,19 @@ export const AuthStore = signalStore(
 
       const crypto = await getCrypto();
 
-      const delay = crypto?.calculateRefreshDelay(store.accessToken()) ?? null;
+      // Prefer server-provided expiry timestamp when available
+      const expiresAt = store.accessTokenExpiresAt();
+
+      let delay: number | null = null;
+
+      if (expiresAt) {
+        const now = Date.now();
+        const msLeft = expiresAt - now;
+        // schedule refresh 60s before expiry (or immediately if passed)
+        delay = Math.max(0, msLeft - 60_000);
+      } else {
+        delay = crypto?.calculateRefreshDelay(store.accessToken()) ?? null;
+      }
 
       if (delay == null) {
         return;
@@ -387,9 +410,21 @@ export const AuthStore = signalStore(
     const validateAndRefresh = async (): Promise<void> => {
       const crypto = await getCrypto();
 
-      const delay = crypto?.calculateRefreshDelay(store.accessToken()) ?? null;
+      const expiresAt = store.accessTokenExpiresAt();
 
-      if (delay === 0) {
+      let shouldRefresh = false;
+
+      if (expiresAt) {
+        const now = Date.now();
+        // refresh if token is expired or about to expire within 60s
+        shouldRefresh = expiresAt - now <= 60_000;
+      } else {
+        const delay = crypto?.calculateRefreshDelay(store.accessToken()) ?? null;
+
+        shouldRefresh = delay === 0;
+      }
+
+      if (shouldRefresh) {
         await performRefresh();
       }
     };
@@ -413,12 +448,21 @@ export const AuthStore = signalStore(
 
       refreshPromise = (async () => {
         try {
-          const body = await firstValueFrom(http.post<LoginResponse>(`${api.restUrl}/auth/refresh`, { refreshToken }));
+          const body = await firstValueFrom(
+            http.post<LoginResponse>(`${api.restUrl}/auth/refresh`, {}, { withCredentials: true })
+          );
+
+          // Backend returns tokens via HttpOnly cookies; server provides accessTokenExpiresAt.
+          const accessToken = body.accessToken || 'cookie-based';
+          const refreshTokenValue = body.refreshToken || refreshToken;
+          const expiresAt = body.accessTokenExpiresAt ?? null;
 
           patchState(store, {
-            accessToken: body.accessToken,
+            accessToken,
 
-            refreshToken: body.refreshToken ?? refreshToken,
+            refreshToken: refreshTokenValue,
+
+            accessTokenExpiresAt: expiresAt,
 
             user: body.user,
 
@@ -503,17 +547,27 @@ export const AuthStore = signalStore(
     // =====================================================
 
     return {
-      async login(credentials: LoginCredentials): Promise<void> {
-        const body = await firstValueFrom(http.post<LoginResponse>(`${api.restUrl}/auth/login`, credentials));
+      async login(loginCredentials: LoginCredentials): Promise<void> {
+        const body = await firstValueFrom(
+          http.post<LoginResponse>(`${api.restUrl}/auth/login`, loginCredentials, { withCredentials: true })
+        );
+
+        // Backend sets tokens via HttpOnly cookies. Backend includes an expiry timestamp
+        // so the frontend can schedule refreshes without reading HttpOnly cookies.
+        const accessToken = body.accessToken || 'cookie-based';
+        const refreshToken = body.refreshToken || 'cookie-based';
+        const expiresAt = body.accessTokenExpiresAt ?? null;
 
         patchState(store, {
           user: body.user,
 
           tenant: body.tenant ?? null,
 
-          accessToken: body.accessToken,
+          accessToken,
 
-          refreshToken: body.refreshToken,
+          refreshToken,
+
+          accessTokenExpiresAt: expiresAt,
 
           isIdle: false
         });

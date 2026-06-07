@@ -10,163 +10,196 @@ namespace AiIncident.Api.Controllers;
 [ApiController]
 [Route("api/auth")]
 public sealed class AuthController(
-    AppDbContext db,
-    IJwtTokenService jwtTokenService,
-    IRefreshTokenStore refreshTokenStore,
-    IPasswordHasher passwordHasher) : ControllerBase
+  AppDbContext db,
+  IJwtTokenService jwtTokenService,
+  IRefreshTokenStore refreshTokenStore,
+  IPasswordHasher passwordHasher) : ControllerBase
 {
-    [AllowAnonymous]
-    [HttpPost("login")]
-    public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
+  [AllowAnonymous]
+  [HttpPost("login")]
+  public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request,
+    CancellationToken cancellationToken)
+  {
+    if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
     {
-        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
-        {
-            return BadRequest(new { message = "Email and password are required." });
-        }
-
-        var email = TenantLoginHelper.NormalizeEmail(request.Email);
-
-        var superCandidate = await db.Users.AsNoTracking()
-            .FirstOrDefaultAsync(
-                u => u.TenantId == null && u.Role == UserRole.SUPER_ADMIN && u.Email == email,
-                cancellationToken);
-
-        User authenticated;
-        Tenant? tenant = null;
-
-        if (superCandidate is not null)
-        {
-            if (!superCandidate.IsActive || !passwordHasher.VerifyPassword(request.Password, superCandidate.PasswordHash))
-            {
-                return Unauthorized(new { message = "Invalid email or password." });
-            }
-
-            authenticated = superCandidate;
-        }
-        else
-        {
-            if (!TenantLoginHelper.TryGetEmailDomain(email, out var domain))
-            {
-                return BadRequest(new { message = "Invalid email address." });
-            }
-
-            if (TenantLoginHelper.IsBlockedConsumerDomain(domain))
-            {
-                return BadRequest(new
-                {
-                    message = "Consumer email domains are not allowed. Use your organization email, or ask a tenant admin to invite you."
-                });
-            }
-
-            var map = await db.TenantEmailDomains
-                .Include(m => m.Tenant)
-                .FirstOrDefaultAsync(m => m.Domain == domain, cancellationToken);
-
-            if (map?.Tenant is null)
-            {
-                return Unauthorized(new { message = "No tenant is registered for this email domain." });
-            }
-
-            tenant = map.Tenant;
-            if (tenant.Status == TenantStatus.Deleted)
-            {
-                return Unauthorized(new { message = "This organization account has been deleted." });
-            }
-
-            if (tenant.Status == TenantStatus.Suspended)
-            {
-                return Unauthorized(new { message = "This organization account is suspended." });
-            }
-
-            var tenantUser = await db.Users.AsNoTracking()
-                .FirstOrDefaultAsync(u => u.TenantId == tenant.Id && u.Email == email, cancellationToken);
-
-            if (tenantUser is null || !tenantUser.IsActive ||
-                !passwordHasher.VerifyPassword(request.Password, tenantUser.PasswordHash))
-            {
-                return Unauthorized(new { message = "Invalid email or password." });
-            }
-
-            authenticated = tenantUser;
-        }
-
-        if (authenticated.TenantId is not null)
-        {
-            tenant = await db.Tenants.AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Id == authenticated.TenantId, cancellationToken);
-            if (tenant?.Status == TenantStatus.Deleted)
-            {
-                return Unauthorized(new { message = "This organization account has been deleted." });
-            }
-
-            if (tenant?.Status == TenantStatus.Suspended)
-            {
-                return Unauthorized(new { message = "This organization account is suspended." });
-            }
-        }
-
-        return Ok(CreateAuthResponse(authenticated, tenant));
+      return BadRequest(new { message = "Email and password are required." });
     }
 
-    [AllowAnonymous]
-    [HttpPost("refresh")]
-    public async Task<ActionResult<AuthResponse>> Refresh([FromBody] RefreshRequest request, CancellationToken cancellationToken)
+    var email = TenantLoginHelper.NormalizeEmail(request.Email);
+
+    var superCandidate = await db.Users.AsNoTracking()
+      .FirstOrDefaultAsync(
+        u => u.TenantId == null && u.Role == UserRole.SUPER_ADMIN && u.Email == email,
+        cancellationToken);
+
+    User authenticated;
+    Tenant? tenant = null;
+
+    if (superCandidate is not null)
     {
-        if (!refreshTokenStore.TryGetUser(request.RefreshToken, out var userId))
+      if (!superCandidate.IsActive || !passwordHasher.VerifyPassword(request.Password, superCandidate.PasswordHash))
+      {
+        return Unauthorized(new { message = "Invalid email or password." });
+      }
+
+      authenticated = superCandidate;
+    }
+    else
+    {
+      if (!TenantLoginHelper.TryGetEmailDomain(email, out var domain))
+      {
+        return BadRequest(new { message = "Invalid email address." });
+      }
+
+      if (TenantLoginHelper.IsBlockedConsumerDomain(domain))
+      {
+        return BadRequest(new
         {
-            return Unauthorized();
-        }
+          message =
+            "Consumer email domains are not allowed. Use your organization email, or ask a tenant admin to invite you."
+        });
+      }
 
-        var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId, cancellationToken);
-        if (user is null || !user.IsActive)
-        {
-            return Unauthorized();
-        }
+      var map = await db.TenantEmailDomains
+        .Include(m => m.Tenant)
+        .FirstOrDefaultAsync(m => m.Domain == domain, cancellationToken);
 
-        Tenant? tenant = null;
-        if (user.TenantId is not null)
-        {
-            tenant = await db.Tenants.AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Id == user.TenantId, cancellationToken);
-            if (tenant?.Status == TenantStatus.Deleted)
-            {
-                return Unauthorized(new { message = "This organization account has been deleted." });
-            }
+      if (map?.Tenant is null)
+      {
+        return Unauthorized(new { message = "No tenant is registered for this email domain." });
+      }
 
-            if (tenant?.Status == TenantStatus.Suspended)
-            {
-                return Unauthorized(new { message = "This organization account is suspended." });
-            }
-        }
+      tenant = map.Tenant;
+      if (tenant.Status == TenantStatus.Deleted)
+      {
+        return Unauthorized(new { message = "This organization account has been deleted." });
+      }
 
-        return Ok(CreateAuthResponse(user, tenant));
+      if (tenant.Status == TenantStatus.Suspended)
+      {
+        return Unauthorized(new { message = "This organization account is suspended." });
+      }
+
+      var tenantUser = await db.Users.AsNoTracking()
+        .FirstOrDefaultAsync(u => u.TenantId == tenant.Id && u.Email == email, cancellationToken);
+
+      if (tenantUser is null || !tenantUser.IsActive ||
+          !passwordHasher.VerifyPassword(request.Password, tenantUser.PasswordHash))
+      {
+        return Unauthorized(new { message = "Invalid email or password." });
+      }
+
+      authenticated = tenantUser;
     }
 
-    private AuthResponse CreateAuthResponse(User user, Tenant? tenant)
+    if (authenticated.TenantId is not null)
     {
-        var accessToken = jwtTokenService.CreateAccessToken(user, tenant?.Slug);
-        var refreshToken = jwtTokenService.CreateRefreshToken();
-        refreshTokenStore.Save(refreshToken, user.Id);
+      tenant = await db.Tenants.AsNoTracking()
+        .FirstOrDefaultAsync(t => t.Id == authenticated.TenantId, cancellationToken);
+      if (tenant?.Status == TenantStatus.Deleted)
+      {
+        return Unauthorized(new { message = "This organization account has been deleted." });
+      }
 
-        return new AuthResponse
-        {
-            AccessToken = accessToken,
-            RefreshToken = refreshToken,
-            User = new AuthUserDto
-            {
-                Id = user.Id,
-                Name = user.Name,
-                Email = user.Email,
-                Role = user.Role
-            },
-            Tenant = tenant is null
-                ? null
-                : new TenantSummaryDto
-                {
-                    Id = tenant.Id,
-                    Name = tenant.Name,
-                    Slug = tenant.Slug
-                }
-        };
+      if (tenant?.Status == TenantStatus.Suspended)
+      {
+        return Unauthorized(new { message = "This organization account is suspended." });
+      }
     }
+
+    return Ok(CreateAuthResponse(authenticated, tenant));
+  }
+
+  [AllowAnonymous]
+  [HttpPost("refresh")]
+  public async Task<ActionResult<AuthResponse>> Refresh([FromBody] RefreshRequest request,
+    CancellationToken cancellationToken)
+  {
+    // Support refresh token coming from HttpOnly cookie (preferred) or request body.
+    var incomingRefreshToken = string.IsNullOrEmpty(request.RefreshToken)
+      ? Request.Cookies["refreshToken"]
+      : request.RefreshToken;
+
+    if (string.IsNullOrEmpty(incomingRefreshToken) ||
+        !refreshTokenStore.TryGetUser(incomingRefreshToken, out var userId))
+    {
+      return Unauthorized();
+    }
+
+    var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId, cancellationToken);
+    if (user is null || !user.IsActive)
+    {
+      return Unauthorized();
+    }
+
+    Tenant? tenant = null;
+    if (user.TenantId is not null)
+    {
+      tenant = await db.Tenants.AsNoTracking()
+        .FirstOrDefaultAsync(t => t.Id == user.TenantId, cancellationToken);
+      if (tenant?.Status == TenantStatus.Deleted)
+      {
+        return Unauthorized(new { message = "This organization account has been deleted." });
+      }
+
+      if (tenant?.Status == TenantStatus.Suspended)
+      {
+        return Unauthorized(new { message = "This organization account is suspended." });
+      }
+    }
+
+    return Ok(CreateAuthResponse(user, tenant));
+  }
+
+  private AuthResponse CreateAuthResponse(User user, Tenant? tenant)
+  {
+    var accessToken = jwtTokenService.CreateAccessToken(user, tenant?.Slug);
+    var refreshToken = jwtTokenService.CreateRefreshToken();
+    refreshTokenStore.Save(refreshToken, user.Id);
+
+    // Cookie options
+    var accessCookieOptions = new CookieOptions
+    {
+      HttpOnly = true,
+      Secure = true,
+      SameSite = SameSiteMode.Strict,
+      MaxAge = TimeSpan.FromMinutes(15)
+    };
+
+    var refreshCookieOptions = new CookieOptions
+    {
+      HttpOnly = true,
+      Secure = true,
+      SameSite = SameSiteMode.Strict,
+      MaxAge = TimeSpan.FromDays(30)
+    };
+
+    Response.Cookies.Append("accessToken", accessToken, accessCookieOptions);
+    Response.Cookies.Append("refreshToken", refreshToken, refreshCookieOptions);
+
+    // Keep response shape but omit tokens from body for security
+    var expiresAt = DateTimeOffset.UtcNow.AddMinutes(30).ToUnixTimeMilliseconds();
+
+    return new AuthResponse
+    {
+      AccessToken = string.Empty,
+      RefreshToken = string.Empty,
+      AccessTokenExpiresAt = expiresAt,
+      User = new AuthUserDto
+      {
+        Id = user.Id,
+        Name = user.Name,
+        Email = user.Email,
+        Role = user.Role
+      },
+      Tenant = tenant is null
+        ? null
+        : new TenantSummaryDto
+        {
+          Id = tenant.Id,
+          Name = tenant.Name,
+          Slug = tenant.Slug
+        }
+    };
+  }
 }
