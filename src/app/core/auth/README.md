@@ -4,7 +4,7 @@ This module provides the centralized authentication store used by the UI.
 
 Key points
 
-- Stores `user`, `tenant`, `accessToken` and `refreshToken` as signals.
+- Stores `user`, `tenant` and `accessTokenExpiresAt` as signals. Tokens are kept in HttpOnly cookies and not exposed to the client.
 - Persists session to `sessionStorage` using Web Crypto AES-GCM encryption when available. If Web Crypto is not available, falls back to plain JSON.
 - Automatically schedules a token refresh using the JWT `exp` claim (refresh is attempted 60s before expiry).
 - Public API: `login(credentials)`, `logout()`, `refresh()`, `restoreFromStorage()`.
@@ -159,8 +159,7 @@ Response:
 
 ```json
 {
-  "accessToken": "...",
-  "refreshToken": "...",
+    "accessTokenExpiresAt": 1650000000000,
   "user": {...},
   "tenant": {...}
 }
@@ -229,7 +228,7 @@ Stored data:
 
 ```ts
 {
-  (user, tenant, accessToken, refreshToken);
+  (user, tenant, accessTokenExpiresAt);
 }
 ```
 

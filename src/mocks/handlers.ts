@@ -263,8 +263,6 @@ export const handlers = [
       mockSessionTenant = MOCK_TENANT;
     }
     return HttpResponse.json({
-      accessToken: `mock.${mockSessionUser.role.toLowerCase()}.token`,
-      refreshToken: 'mock-refresh',
       accessTokenExpiresAt: Date.now() + 30 * 60 * 1000,
       user: mockSessionUser,
       tenant: mockSessionTenant
@@ -275,8 +273,6 @@ export const handlers = [
     const body = (await request.json()) as { refreshToken: string };
     void body;
     return HttpResponse.json({
-      accessToken: 'mock.refreshed',
-      refreshToken: 'mock-refresh',
       accessTokenExpiresAt: Date.now() + 30 * 60 * 1000,
       user: mockSessionUser,
       tenant: mockSessionTenant

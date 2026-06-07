@@ -52,10 +52,6 @@ export interface LoginCredentials {
 }
 
 interface LoginResponse {
-  accessToken?: string;
-
-  refreshToken?: string;
-
   // Unix ms timestamp when access token expires
   accessTokenExpiresAt?: number;
 
