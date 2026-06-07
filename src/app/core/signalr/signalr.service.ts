@@ -94,7 +94,7 @@ export class SignalRService {
   // Connection Builder
   // --------------------------------------------------------------------------
 
-  private buildConnection(accessToken: string | null): signalR.HubConnection {
+  private buildConnection(): signalR.HubConnection {
     const configured = (this.api?.restUrl ?? this.api?.graphqlUrl ?? '').replace(/\/$/, '');
 
     const base = configured.replace(/\/api(?=$|\/)/i, '');
@@ -103,7 +103,8 @@ export class SignalRService {
 
     return new signalR.HubConnectionBuilder()
       .withUrl(hubUrl, {
-        accessTokenFactory: async () => accessToken ?? ''
+        // rely on HttpOnly cookies for authentication
+        withCredentials: true
       })
       .withAutomaticReconnect()
       .configureLogging(LogLevel.Information)
@@ -130,14 +131,13 @@ export class SignalRService {
 
     const auth = this.getAuth();
 
-    const accessToken = auth.accessToken();
-
-    if (!accessToken) {
-      console.warn('[SignalR] no access token available');
+    // Only start SignalR if there's an authenticated user (cookies provide auth)
+    if (!auth.user()) {
+      console.warn('[SignalR] no authenticated user');
       return;
     }
 
-    this.hub = this.buildConnection(accessToken);
+    this.hub = this.buildConnection();
 
     // ----------------------------------------------------------------------
     // Event Handlers

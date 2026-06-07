@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import type { Ticket, User, UserRole } from '../graphql/generated/graphql';
 import { ALL_TICKETS, metricsFor, MOCK_TENANT, MOCK_USERS } from './fixtures/seed';
 
-let mockSessionUser: User = MOCK_USERS.find((u) => u.role === 'MANAGER') ?? MOCK_USERS[0]!;
+let mockSessionUser: User = MOCK_USERS.find(u => u.role === 'MANAGER') ?? MOCK_USERS[0]!;
 let mockSessionTenant: typeof MOCK_TENANT | null = MOCK_TENANT;
 
 let ticketDb: Ticket[] = JSON.parse(JSON.stringify(ALL_TICKETS)) as Ticket[];
@@ -37,15 +37,13 @@ function filterList(filter: Record<string, unknown> | undefined | null): Ticket[
   const tags = filter['tags'] as string[] | undefined;
   const slaBreaching = filter['slaBreaching'] as boolean | undefined;
   const search = (filter['search'] as string | undefined)?.toLowerCase().trim();
-  if (status?.length) list = list.filter((t) => status.includes(t.status));
-  if (priority?.length) list = list.filter((t) => priority.includes(t.priority));
-  if (assigneeId) list = list.filter((t) => t.assigneeId === assigneeId);
-  if (tags?.length) list = list.filter((t) => tags.some((tag) => t.tags.includes(tag)));
-  if (slaBreaching) list = list.filter((t) => t.slaBreached);
+  if (status?.length) list = list.filter(t => status.includes(t.status));
+  if (priority?.length) list = list.filter(t => priority.includes(t.priority));
+  if (assigneeId) list = list.filter(t => t.assigneeId === assigneeId);
+  if (tags?.length) list = list.filter(t => tags.some(tag => t.tags.includes(tag)));
+  if (slaBreaching) list = list.filter(t => t.slaBreached);
   if (search) {
-    list = list.filter(
-      (t) => t.title.toLowerCase().includes(search) || t.description.toLowerCase().includes(search),
-    );
+    list = list.filter(t => t.title.toLowerCase().includes(search) || t.description.toLowerCase().includes(search));
   }
   return list;
 }
@@ -61,7 +59,7 @@ function listNode(t: Ticket) {
     tags: t.tags,
     updatedAt: t.updatedAt,
     assignee: t.assignee ? { id: t.assignee.id, name: t.assignee.name } : null,
-    team: t.team ? { id: t.team.id, name: t.team.name } : null,
+    team: t.team ? { id: t.team.id, name: t.team.name } : null
   };
 }
 
@@ -76,14 +74,14 @@ const platformTenantListRow = {
     id: 'u-tenant-admin',
     name: 'Taylor Tenant Admin',
     email: 'admin@example.com',
-    isActive: true,
-  },
+    isActive: true
+  }
 };
 
 const platformTenantDetail = {
   ...platformTenantListRow,
   domains: [{ domain: 'example.com', isPrimary: true }],
-  tenantAdmin: platformTenantListRow.tenantAdmin,
+  tenantAdmin: platformTenantListRow.tenantAdmin
 };
 
 export const handlers = [
@@ -101,9 +99,9 @@ export const handlers = [
           data: {
             me: {
               user: mockSessionUser,
-              tenant: mockSessionTenant,
-            },
-          },
+              tenant: mockSessionTenant
+            }
+          }
         });
       }
       case 'Tickets': {
@@ -114,17 +112,17 @@ export const handlers = [
         const slice = filtered.slice(start, start + first);
         const edges = slice.map((node, i) => ({
           cursor: encodeCursor(start + i),
-          node: listNode(node),
+          node: listNode(node)
         }));
         const hasNext = start + first < filtered.length;
         const endCursor = edges.length ? edges[edges.length - 1]!.cursor : null;
         return HttpResponse.json({
-          data: { tickets: { edges, pageInfo: { endCursor, hasNextPage: hasNext } } },
+          data: { tickets: { edges, pageInfo: { endCursor, hasNextPage: hasNext } } }
         });
       }
       case 'Ticket': {
         const id = v['id'] as string;
-        const t = ticketDb.find((x) => x.id === id) ?? null;
+        const t = ticketDb.find(x => x.id === id) ?? null;
         return HttpResponse.json({ data: { ticket: t } });
       }
       case 'DashboardMetrics': {
@@ -134,7 +132,7 @@ export const handlers = [
       case 'UpdateTicket': {
         const id = v['id'] as string;
         const input = v['input'] as Record<string, unknown>;
-        const t = ticketDb.find((x) => x.id === id);
+        const t = ticketDb.find(x => x.id === id);
         if (!t) {
           return HttpResponse.json({ errors: [{ message: 'Not found' }] }, { status: 200 });
         }
@@ -155,22 +153,22 @@ export const handlers = [
               tags: t.tags,
               status: t.status,
               priority: t.priority,
-              updatedAt: t.updatedAt,
-            },
-          },
+              updatedAt: t.updatedAt
+            }
+          }
         });
       }
       case 'DeleteTicket': {
         const id = v['id'] as string;
         const before = ticketDb.length;
-        ticketDb = ticketDb.filter((x) => x.id !== id);
+        ticketDb = ticketDb.filter(x => x.id !== id);
         return HttpResponse.json({ data: { deleteTicket: before !== ticketDb.length } });
       }
       case 'AssignTicket': {
         const id = v['id'] as string;
         const assigneeId = v['assigneeId'] as string;
-        const t = ticketDb.find((x) => x.id === id);
-        const user = MOCK_USERS.find((u) => u.id === assigneeId) ?? MOCK_USERS[0];
+        const t = ticketDb.find(x => x.id === id);
+        const user = MOCK_USERS.find(u => u.id === assigneeId) ?? MOCK_USERS[0];
         if (t) {
           t.assigneeId = assigneeId;
           t.assignee = user ?? null;
@@ -181,15 +179,15 @@ export const handlers = [
             assignTicket: {
               id,
               assigneeId,
-              assignee: user ? { id: user.id, name: user.name } : null,
-            },
-          },
+              assignee: user ? { id: user.id, name: user.name } : null
+            }
+          }
         });
       }
       case 'AddComment': {
         const ticketId = v['ticketId'] as string;
         const bodyText = v['body'] as string;
-        const t = ticketDb.find((x) => x.id === ticketId);
+        const t = ticketDb.find(x => x.id === ticketId);
         const c = {
           __typename: 'Comment' as const,
           id: `c-${Date.now()}`,
@@ -197,7 +195,7 @@ export const handlers = [
           authorId: 'u-agent',
           author: MOCK_USERS[0] ?? null,
           body: bodyText,
-          createdAt: new Date().toISOString(),
+          createdAt: new Date().toISOString()
         };
         if (t) {
           t.comments = [...t.comments, c];
@@ -226,28 +224,25 @@ export const handlers = [
         nt.createdAt = new Date().toISOString();
         nt.updatedAt = nt.createdAt;
         nt.attachments = (input.attachmentIds ?? [])
-          .map((assetId) => {
-            const asset = uploadDb.find((a) => a.id === assetId);
+          .map(assetId => {
+            const asset = uploadDb.find(a => a.id === assetId);
             if (!asset) return null;
             return {
               __typename: 'Attachment' as const,
               id: asset.id,
               fileName: asset.fileName,
               url: asset.url,
-              uploadedAt: asset.uploadedAt,
+              uploadedAt: asset.uploadedAt
             };
           })
           .filter((value): value is NonNullable<typeof value> => !!value);
         ticketDb = [nt, ...ticketDb];
         return HttpResponse.json({
-          data: { createTicket: { id, title: nt.title, status: nt.status, priority: nt.priority } },
+          data: { createTicket: { id, title: nt.title, status: nt.status, priority: nt.priority } }
         });
       }
       default:
-        return HttpResponse.json(
-          { errors: [{ message: `Unknown operation ${op ?? ''}` }] },
-          { status: 200 },
-        );
+        return HttpResponse.json({ errors: [{ message: `Unknown operation ${op ?? ''}` }] }, { status: 200 });
     }
   }),
 
@@ -260,18 +255,19 @@ export const handlers = [
         id: 'u-super-admin',
         name: 'Platform Super Admin',
         email,
-        role: 'SUPER_ADMIN' as UserRole,
+        role: 'SUPER_ADMIN' as UserRole
       };
       mockSessionTenant = null;
     } else {
-      mockSessionUser = MOCK_USERS.find((u) => u.email === email) ?? MOCK_USERS[2]!;
+      mockSessionUser = MOCK_USERS.find(u => u.email === email) ?? MOCK_USERS[2]!;
       mockSessionTenant = MOCK_TENANT;
     }
     return HttpResponse.json({
       accessToken: `mock.${mockSessionUser.role.toLowerCase()}.token`,
       refreshToken: 'mock-refresh',
+      accessTokenExpiresAt: Date.now() + 30 * 60 * 1000,
       user: mockSessionUser,
-      tenant: mockSessionTenant,
+      tenant: mockSessionTenant
     });
   }),
 
@@ -281,16 +277,17 @@ export const handlers = [
     return HttpResponse.json({
       accessToken: 'mock.refreshed',
       refreshToken: 'mock-refresh',
+      accessTokenExpiresAt: Date.now() + 30 * 60 * 1000,
       user: mockSessionUser,
-      tenant: mockSessionTenant,
+      tenant: mockSessionTenant
     });
   }),
 
   http.get('/api/platform/tenants', () =>
     HttpResponse.json({
       live: [platformTenantListRow],
-      deleted: [] as typeof platformTenantListRow[],
-    }),
+      deleted: [] as (typeof platformTenantListRow)[]
+    })
   ),
 
   http.get('/api/platform/tenants/:tenantId', ({ params }) => {
@@ -304,15 +301,13 @@ export const handlers = [
     HttpResponse.json({
       tenant: { id: 'tenant-mock', name: 'Mock', slug: 'mock' },
       primaryDomain: 'mock.example',
-      tenantAdmin: { id: 'u-mock', name: 'Mock Admin', email: 'admin@mock.example' },
-    }),
+      tenantAdmin: { id: 'u-mock', name: 'Mock Admin', email: 'admin@mock.example' }
+    })
   ),
 
   http.patch('/api/platform/tenants/:tenantId', async () => HttpResponse.json({ ok: true })),
 
-  http.patch('/api/platform/tenants/:tenantId/tenant-admins/:userId', async () =>
-    HttpResponse.json({ ok: true }),
-  ),
+  http.patch('/api/platform/tenants/:tenantId/tenant-admins/:userId', async () => HttpResponse.json({ ok: true })),
 
   http.patch('/api/platform/tenants/:tenantId/delete', async () => HttpResponse.json({ ok: true })),
 
@@ -325,14 +320,14 @@ export const handlers = [
   http.get('/api/tenant/users', () =>
     HttpResponse.json({
       primaryEmailDomain: 'example.com',
-      users: MOCK_USERS.map((u) => ({
+      users: MOCK_USERS.map(u => ({
         id: u.id,
         name: u.name,
         email: u.email,
         role: u.role,
-        isActive: true,
-      })),
-    }),
+        isActive: true
+      }))
+    })
   ),
 
   http.post('/api/tenant/users', async () => HttpResponse.json({ ok: true })),
@@ -353,7 +348,7 @@ export const handlers = [
           sizeBytes: value.size,
           uploadedByUserId: 'u-agent',
           uploadedAt: new Date().toISOString(),
-          url: `/api/files/${id}`,
+          url: `/api/files/${id}`
         };
       })
       .filter((item): item is NonNullable<typeof item> => !!item);
@@ -365,15 +360,15 @@ export const handlers = [
     HttpResponse.json({
       problem: 'Connectivity / authentication issue affecting remote access.',
       impact: 'Users cannot reach internal apps via VPN.',
-      nextSteps: 'Verify gateway logs, reset MFA device, and confirm WiFi captive portal bypass.',
-    }),
+      nextSteps: 'Verify gateway logs, reset MFA device, and confirm WiFi captive portal bypass.'
+    })
   ),
 
   http.post('/api/ai/reply', async () =>
     HttpResponse.json({
       draft:
-        'Thanks for the details. Could you confirm whether this happens only on office WiFi and whether other devices show the same behavior?',
-    }),
+        'Thanks for the details. Could you confirm whether this happens only on office WiFi and whether other devices show the same behavior?'
+    })
   ),
 
   http.post('/api/ai/form-assist', async ({ request }) => {
@@ -382,15 +377,15 @@ export const handlers = [
     return HttpResponse.json({
       title: t.includes('vpn') ? 'VPN connectivity issue' : 'General IT request',
       category: t.includes('vpn') ? 'Network' : 'General',
-      priority: t.includes('down') || t.includes('not working') ? 'P2' : 'P3',
+      priority: t.includes('down') || t.includes('not working') ? 'P2' : 'P3'
     });
   }),
 
   http.post('/api/ai/health-report', async () =>
     HttpResponse.json({
       summary:
-        'Overall queue health is stable: SLA risk concentrated in P1 VPN tickets. Recommend staffing Network on-call and publishing a WiFi/VPN FAQ.',
-    }),
+        'Overall queue health is stable: SLA risk concentrated in P1 VPN tickets. Recommend staffing Network on-call and publishing a WiFi/VPN FAQ.'
+    })
   ),
 
   http.get('/api/validate-asset', ({ request }) => {
@@ -400,5 +395,5 @@ export const handlers = [
       return HttpResponse.json({ valid: false, message: 'Asset tag too short' }, { status: 400 });
     }
     return HttpResponse.json({ valid: true, assetId: `AST-${tag.toUpperCase()}` });
-  }),
+  })
 ];

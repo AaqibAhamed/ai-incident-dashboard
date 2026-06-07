@@ -38,10 +38,6 @@ type AuthState = {
 
   tenant: SessionTenant | null;
 
-  accessToken: string | null;
-
-  refreshToken: string | null;
-
   // Unix ms timestamp when access token expires (provided by server)
   accessTokenExpiresAt: number | null;
 
@@ -79,11 +75,6 @@ export const AuthStore = signalStore(
     user: null,
 
     tenant: null,
-
-    accessToken: null,
-
-    refreshToken: null,
-
     accessTokenExpiresAt: null,
 
     isIdle: false,
@@ -174,11 +165,6 @@ export const AuthStore = signalStore(
         user: null,
 
         tenant: null,
-
-        accessToken: null,
-
-        refreshToken: null,
-
         isIdle: false
       });
     };
@@ -225,15 +211,12 @@ export const AuthStore = signalStore(
       }
 
       try {
-        const payload = {
+        const payload: Partial<AuthState> = {
           user: store.user(),
 
           tenant: store.tenant(),
 
-          accessToken: store.accessToken(),
-
-          refreshToken: store.refreshToken(),
-
+          // We persist only user/tenant and the server-provided expiry. Tokens live in HttpOnly cookies.
           accessTokenExpiresAt: store.accessTokenExpiresAt()
         };
 
@@ -372,11 +355,9 @@ export const AuthStore = signalStore(
     const scheduleRefresh = async (): Promise<void> => {
       clearRefreshTimer();
 
-      if (store.isIdle() || !store.accessToken()) {
+      if (store.isIdle() || !store.user()) {
         return;
       }
-
-      const crypto = await getCrypto();
 
       // Prefer server-provided expiry timestamp when available
       const expiresAt = store.accessTokenExpiresAt();
@@ -389,7 +370,8 @@ export const AuthStore = signalStore(
         // schedule refresh 60s before expiry (or immediately if passed)
         delay = Math.max(0, msLeft - 60_000);
       } else {
-        delay = crypto?.calculateRefreshDelay(store.accessToken()) ?? null;
+        // No client-side token available for fallback when using cookie-only auth
+        delay = null;
       }
 
       if (delay == null) {
@@ -408,8 +390,6 @@ export const AuthStore = signalStore(
     };
 
     const validateAndRefresh = async (): Promise<void> => {
-      const crypto = await getCrypto();
-
       const expiresAt = store.accessTokenExpiresAt();
 
       let shouldRefresh = false;
@@ -419,9 +399,8 @@ export const AuthStore = signalStore(
         // refresh if token is expired or about to expire within 60s
         shouldRefresh = expiresAt - now <= 60_000;
       } else {
-        const delay = crypto?.calculateRefreshDelay(store.accessToken()) ?? null;
-
-        shouldRefresh = delay === 0;
+        // Without a client-side token we can't compute a fallback; only refresh based on server expiry
+        shouldRefresh = false;
       }
 
       if (shouldRefresh) {
@@ -438,30 +417,16 @@ export const AuthStore = signalStore(
         return refreshPromise;
       }
 
-      const refreshToken = store.refreshToken();
-
-      if (!refreshToken) {
-        performLogout();
-
-        return;
-      }
-
       refreshPromise = (async () => {
         try {
+          // For cookie-only auth we don't send tokens in the body. Server validates cookies.
           const body = await firstValueFrom(
             http.post<LoginResponse>(`${api.restUrl}/auth/refresh`, {}, { withCredentials: true })
           );
 
-          // Backend returns tokens via HttpOnly cookies; server provides accessTokenExpiresAt.
-          const accessToken = body.accessToken || 'cookie-based';
-          const refreshTokenValue = body.refreshToken || refreshToken;
           const expiresAt = body.accessTokenExpiresAt ?? null;
 
           patchState(store, {
-            accessToken,
-
-            refreshToken: refreshTokenValue,
-
             accessTokenExpiresAt: expiresAt,
 
             user: body.user,
@@ -518,11 +483,7 @@ export const AuthStore = signalStore(
       patchState(store, {
         user: parsed.user ?? null,
 
-        tenant: parsed.tenant ?? null,
-
-        accessToken: parsed.accessToken ?? null,
-
-        refreshToken: parsed.refreshToken ?? null
+        tenant: parsed.tenant ?? null
       });
 
       try {
@@ -554,18 +515,12 @@ export const AuthStore = signalStore(
 
         // Backend sets tokens via HttpOnly cookies. Backend includes an expiry timestamp
         // so the frontend can schedule refreshes without reading HttpOnly cookies.
-        const accessToken = body.accessToken || 'cookie-based';
-        const refreshToken = body.refreshToken || 'cookie-based';
         const expiresAt = body.accessTokenExpiresAt ?? null;
 
         patchState(store, {
           user: body.user,
 
           tenant: body.tenant ?? null,
-
-          accessToken,
-
-          refreshToken,
 
           accessTokenExpiresAt: expiresAt,
 
@@ -609,13 +564,12 @@ export const AuthStore = signalStore(
 
       // persistence effect: watch tokens and persist whenever they change
       effect(() => {
-        store.accessToken();
+        // watch user and expiry; persist after restoration
+        store.user();
 
-        store.refreshToken();
+        store.accessTokenExpiresAt();
 
-        // only persist after the store has finished restoring initial state
         if (store.initialized()) {
-          // call the exposed persist method (fire-and-forget)
           void store.saveToStorage();
         }
       });

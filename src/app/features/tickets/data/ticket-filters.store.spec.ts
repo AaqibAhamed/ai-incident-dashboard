@@ -1,9 +1,20 @@
 import { TestBed } from '@angular/core/testing';
+import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
+import { TestBed as TB } from '@angular/core/testing';
 import { describe, expect, it, beforeEach } from 'vitest';
 import { TicketFiltersStore } from './ticket-filters.store';
 
 describe('TicketFiltersStore', () => {
+  try {
+    TB.initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
+  } catch {}
+
   beforeEach(() => {
+    // Ensure a fresh TestBed for each suite
+    try {
+      TestBed.resetTestingModule();
+    } catch {}
+
     TestBed.configureTestingModule({});
   });
 

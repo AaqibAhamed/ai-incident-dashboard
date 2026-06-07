@@ -10,8 +10,7 @@ import type { SessionTenant, SessionUser } from './auth.store';
 type AuthStoreInstance = {
   user(): SessionUser | null;
   tenant(): SessionTenant | null;
-  accessToken(): string | null;
-  refreshToken(): string | null;
+  accessTokenExpiresAt(): number | null;
   lastActivityAt(): number | null;
   isIdle(): boolean;
   isAuthenticated(): boolean;
@@ -34,7 +33,7 @@ const mockCalculateRefreshDelay = vi.fn(() => 60_000);
 vi.mock('./auth.crypto', async () => ({
   encryptState: mockEncryptState,
   decryptState: mockDecryptState,
-  calculateRefreshDelay: mockCalculateRefreshDelay,
+  calculateRefreshDelay: mockCalculateRefreshDelay
 }));
 
 try {
@@ -47,7 +46,7 @@ describe('AuthStore', () => {
   const apiConfig = {
     restUrl: 'http://api.test',
     graphqlUrl: 'http://graphql.test',
-    wsUrl: 'ws://api.test',
+    wsUrl: 'ws://api.test'
   };
   let httpClient: { post: (...args: unknown[]) => unknown };
   let authStoreToken: ProviderToken<AuthStoreInstance>;
@@ -55,7 +54,7 @@ describe('AuthStore', () => {
   beforeEach(async () => {
     TestBed.resetTestingModule();
     httpClient = {
-      post: vi.fn(),
+      post: vi.fn()
     };
 
     sessionStorage.clear();
@@ -64,8 +63,8 @@ describe('AuthStore', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: HttpClient, useValue: httpClient },
-        { provide: API_CONFIG, useValue: apiConfig },
-      ],
+        { provide: API_CONFIG, useValue: apiConfig }
+      ]
     });
 
     const module = await TestBed.runInInjectionContext(async () => await import('./auth.store'));
@@ -93,26 +92,24 @@ describe('AuthStore', () => {
       expect(store.roles()).toEqual([]);
       expect(store.isSuperAdmin()).toBe(false);
       expect(store.isTenantUser()).toBe(false);
-      expect(store.accessToken()).toBeNull();
-      expect(store.refreshToken()).toBeNull();
+      // tokens are cookie-only and not exposed to JS
     });
   });
 
   it('logs in and persists session state', async () => {
     const response = {
-      accessToken: 'access-token',
-      refreshToken: 'refresh-token',
+      accessTokenExpiresAt: Date.now() + 30 * 60 * 1000,
       user: {
         id: 'user-1',
         name: 'Test User',
         email: 'test@domain.com',
-        role: 'SUPER_ADMIN',
+        role: 'SUPER_ADMIN'
       } as SessionUser,
       tenant: {
         id: 'tenant-1',
         name: 'Test Tenant',
-        slug: 'test-tenant',
-      } as SessionTenant,
+        slug: 'test-tenant'
+      } as SessionTenant
     };
 
     (httpClient.post as ReturnType<typeof vi.fn>).mockReturnValue(of(response));
@@ -122,10 +119,14 @@ describe('AuthStore', () => {
       await store.login({ email: 'test@domain.com', password: 'password' });
       await Promise.resolve();
 
-      expect(httpClient.post).toHaveBeenCalledWith(`${apiConfig.restUrl}/auth/login`, {
-        email: 'test@domain.com',
-        password: 'password',
-      });
+      expect(httpClient.post).toHaveBeenCalledWith(
+        `${apiConfig.restUrl}/auth/login`,
+        {
+          email: 'test@domain.com',
+          password: 'password'
+        },
+        { withCredentials: true }
+      );
       expect(store.isAuthenticated()).toBe(true);
       expect(store.user()).toEqual(response.user);
       expect(store.tenant()).toEqual(response.tenant);
@@ -133,7 +134,11 @@ describe('AuthStore', () => {
       expect(store.isTenantUser()).toBe(true);
       expect(sessionStorage.getItem(SESSION_KEY)).not.toBeNull();
       expect(mockEncryptState).toHaveBeenCalled();
-      expect(mockCalculateRefreshDelay).toHaveBeenCalledWith(response.accessToken);
+      // Server provided expiry should be used for scheduling; crypto.calculateRefreshDelay should not be required
+      expect((TestBed.inject(authStoreToken) as AuthStoreInstance).accessTokenExpiresAt()).toBe(
+        response.accessTokenExpiresAt
+      );
+      expect(mockCalculateRefreshDelay).not.toHaveBeenCalled();
     });
   });
 
@@ -143,17 +148,16 @@ describe('AuthStore', () => {
         id: 'user-2',
         name: 'Restore User',
         email: 'restore@domain.com',
-        role: 'TENANT_ADMIN',
+        role: 'TENANT_ADMIN'
       } as SessionUser,
       tenant: {
         id: 'tenant-2',
         name: 'Restore Tenant',
-        slug: 'restore-tenant',
+        slug: 'restore-tenant'
       } as SessionTenant,
-      accessToken: 'restored-access-token',
-      refreshToken: 'restored-refresh-token',
+      accessTokenExpiresAt: Date.now() + 30 * 60 * 1000,
       lastActivityAt: Date.now(),
-      isIdle: false,
+      isIdle: false
     };
 
     (mockDecryptState as ReturnType<typeof vi.fn>).mockResolvedValueOnce(persisted);
@@ -166,41 +170,36 @@ describe('AuthStore', () => {
 
       expect(store.user()).toEqual(persisted.user);
       expect(store.tenant()).toEqual(persisted.tenant);
-      expect(store.accessToken()).toBe(persisted.accessToken);
-      expect(store.refreshToken()).toBe(persisted.refreshToken);
       expect(store.isAuthenticated()).toBe(true);
       expect(mockDecryptState).toHaveBeenCalledWith(JSON.stringify(persisted));
-      expect(mockCalculateRefreshDelay).toHaveBeenCalledWith(persisted.accessToken);
+      // no client-side token present; fallback not used
+      expect(mockCalculateRefreshDelay).not.toHaveBeenCalled();
     });
   });
 
   it('refreshes the access token using refresh token', async () => {
     const refreshed = {
-      accessToken: 'updated-access-token',
-      refreshToken: 'updated-refresh-token',
+      accessTokenExpiresAt: Date.now() + 30 * 60 * 1000,
       user: {
         id: 'user-3',
         name: 'Refresh User',
         email: 'refresh@domain.com',
-        role: 'TENANT_ADMIN',
+        role: 'TENANT_ADMIN'
       } as SessionUser,
       tenant: {
         id: 'tenant-3',
         name: 'Refresh Tenant',
-        slug: 'refresh-tenant',
-      } as SessionTenant,
+        slug: 'refresh-tenant'
+      } as SessionTenant
     };
 
-    const initialAuth = {
-      accessToken: 'old-access-token',
-      refreshToken: 'refresh-token',
+    const loginResp = {
+      accessTokenExpiresAt: Date.now() + 30 * 60 * 1000,
       user: refreshed.user,
-      tenant: refreshed.tenant,
+      tenant: refreshed.tenant
     };
 
-    (httpClient.post as ReturnType<typeof vi.fn>)
-      .mockReturnValueOnce(of(initialAuth))
-      .mockReturnValueOnce(of(refreshed));
+    (httpClient.post as ReturnType<typeof vi.fn>).mockReturnValueOnce(of(loginResp)).mockReturnValueOnce(of(refreshed));
 
     await TestBed.runInInjectionContext(async () => {
       const store = TestBed.inject(authStoreToken) as AuthStoreInstance;
@@ -208,11 +207,7 @@ describe('AuthStore', () => {
 
       await store.refresh();
 
-      expect(httpClient.post).toHaveBeenCalledWith(`${apiConfig.restUrl}/auth/refresh`, {
-        refreshToken: 'refresh-token',
-      });
-      expect(store.accessToken()).toBe(refreshed.accessToken);
-      expect(store.refreshToken()).toBe(refreshed.refreshToken);
+      expect(httpClient.post).toHaveBeenCalledWith(`${apiConfig.restUrl}/auth/refresh`, {}, { withCredentials: true });
       expect(store.user()).toEqual(refreshed.user);
       expect(store.tenant()).toEqual(refreshed.tenant);
       expect(mockEncryptState).toHaveBeenCalled();
@@ -226,27 +221,24 @@ describe('AuthStore', () => {
       const store = TestBed.inject(authStoreToken) as AuthStoreInstance;
       (httpClient.post as ReturnType<typeof vi.fn>).mockReturnValue(
         of({
-          accessToken: 'token',
-          refreshToken: 'rt',
+          accessTokenExpiresAt: Date.now() + 30 * 60 * 1000,
           user: {
             id: 'user-4',
             name: 'Logout User',
             email: 'logout@domain.com',
-            role: 'SUPER_ADMIN',
+            role: 'SUPER_ADMIN'
           },
           tenant: {
             id: 'tenant-4',
             name: 'Logout Tenant',
-            slug: 'logout-tenant',
-          },
-        }),
+            slug: 'logout-tenant'
+          }
+        })
       );
 
       return store.login({ email: 'logout@domain.com', password: 'password' }).then(() => {
         store.logout();
 
-        expect(store.accessToken()).toBeNull();
-        expect(store.refreshToken()).toBeNull();
         expect(store.user()).toBeNull();
         expect(store.tenant()).toBeNull();
         expect(sessionStorage.getItem(SESSION_KEY)).toBeNull();
