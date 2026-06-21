@@ -127,13 +127,11 @@ app.UseAuthorization();
 
 if (!app.Environment.IsEnvironment("Test"))
 {
-  using (var scope = app.Services.CreateScope())
-  {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
-    db.Database.Migrate();
-    AppSeeder.Seed(db, hasher);
-  }
+  using var scope = app.Services.CreateScope();
+  var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+  var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+  db.Database.Migrate();
+  AppSeeder.Seed(db, hasher);
 }
 
 app.MapControllers();
