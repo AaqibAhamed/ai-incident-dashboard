@@ -112,6 +112,9 @@ builder.Services
   .AddMutationType<Mutation>();
 
 var app = builder.Build();
+// Ensure data directory exists so SQLite can create the DB file
+var dataDir = System.IO.Path.GetFullPath(System.IO.Path.Combine(builder.Environment.ContentRootPath, "..", "data"));
+Directory.CreateDirectory(dataDir);
 
 if (app.Environment.IsDevelopment())
 {
@@ -128,7 +131,7 @@ if (!app.Environment.IsEnvironment("Test"))
   {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
-    db.Database.EnsureCreated();
+    db.Database.Migrate();
     AppSeeder.Seed(db, hasher);
   }
 }

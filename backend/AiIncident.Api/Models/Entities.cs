@@ -11,8 +11,8 @@ public sealed class Tenant
     public TenantStatus Status { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
-    public List<TenantEmailDomain> EmailDomains { get; set; } = [];
-    public List<User> Users { get; set; } = [];
+    public List<TenantEmailDomain> EmailDomains { get; set; } = new List<TenantEmailDomain>();
+    public List<User> Users { get; set; } = new List<User>();
 }
 
 public sealed class TenantEmailDomain
@@ -67,15 +67,15 @@ public sealed class Ticket
     public string? TeamId { get; set; }
     public Team? Team { get; set; }
     public string? Category { get; set; }
-    public List<string> Tags { get; set; } = [];
+    public List<string> Tags { get; set; } = new List<string>();
     public DateTime? SlaDueAt { get; set; }
     public bool SlaBreached { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
-    public List<string> RelatedTicketIds { get; set; } = [];
-    public List<Comment> Comments { get; set; } = [];
-    public List<TicketHistoryEntry> History { get; set; } = [];
-    public List<Attachment> Attachments { get; set; } = [];
+    public List<string> RelatedTicketIds { get; set; } = new List<string>();
+    public List<Comment> Comments { get; set; } = new List<Comment>();
+    public List<TicketHistoryEntry> History { get; set; } = new List<TicketHistoryEntry>();
+    public List<Attachment> Attachments { get; set; } = new List<Attachment>();
 }
 
 public sealed class Comment

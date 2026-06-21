@@ -1,6 +1,5 @@
 using AiIncident.Api.Models;
 using AiIncident.Api.Services;
-using Microsoft.EntityFrameworkCore;
 
 namespace AiIncident.Api.Data;
 
@@ -135,12 +134,12 @@ public static class AppSeeder
                 RequesterId = "u-requester",
                 TeamId = team.Id,
                 Category = idx % 2 == 0 ? "Incident" : "Service Request",
-                Tags = idx % 2 == 0 ? ["vpn", "wifi"] : ["email", "mfa"],
+                Tags = idx % 2 == 0 ? new List<string> { "vpn", "wifi" } : new List<string> { "email", "mfa" },
                 SlaDueAt = DateTime.UtcNow.AddHours(slaBreached ? -1 : 48),
                 SlaBreached = slaBreached,
                 CreatedAt = created,
                 UpdatedAt = DateTime.UtcNow,
-                RelatedTicketIds = idx > 1 ? [$"t-{idx - 1}"] : []
+                RelatedTicketIds = idx > 1 ? new List<string> { $"t-{idx - 1}" } : new List<string>()
             };
 
             ticket.Comments.Add(new Comment

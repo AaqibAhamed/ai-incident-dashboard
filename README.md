@@ -13,7 +13,7 @@ npm start
 
 Open `http://localhost:4200`, sign in with **email + password** (tenant is inferred from your email domain). MSW demo: `morgan@example.com` / `demo` (tenant user), `super@ai-platform.internal` / `demo` (platform admin).
 
-**Multi-tenant + SQLite:** The API uses a shared database with a `TenantId` column on tenant-owned rows. If you are upgrading from an older single-tenant database, **delete** `backend/data/app.db` once so `EnsureCreated` can recreate the schema, then restart the API.
+**Multi-tenant + SQLite:** The API uses a shared database with a `TenantId` column on tenant-owned rows. If you are upgrading from an older single-tenant database, **delete** `backend/data/app.db` once so `dotnet ef database update` can recreate the schema, then restart the API. The app now applies EF Core migrations on startup via `db.Database.Migrate()`, so future schema changes should be added with `dotnet ef migrations add <Name>` and applied automatically.
 
 **Seeded .NET accounts (password `demo`):** `super@ai-platform.internal` (super admin), `admin@example.com` (tenant admin), `alex@example.com`(AGENT), `morgan@example.com`(MANAGER), `riley@example.com`(REQUESTER) (mapped via domain `example.com`).
 
