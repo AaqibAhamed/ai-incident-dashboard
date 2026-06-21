@@ -422,7 +422,7 @@ export default class TicketDetailPage {
       if (payload.TicketId === t.id) {
         // If the comment already exists (optimistically added from mutation), skip refresh
         const incomingCommentId = (c as { Comment?: { id?: string } })?.Comment?.id;
-        const existing = incomingCommentId ? t.comments.find(cm => cm.id === incomingCommentId) : undefined;
+        const existing = incomingCommentId ? t.comments?.find(cm => cm.id === incomingCommentId) : undefined;
         if (existing) {
           console.debug(
             '[SignalR] CommentAdded received but comment already present, ignoring. CommentId:',

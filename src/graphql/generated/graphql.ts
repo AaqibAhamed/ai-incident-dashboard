@@ -17,7 +17,7 @@ export type Scalars = {
 };
 
 export type Attachment = {
-  __typename?: 'Attachment';
+  __typename: 'Attachment';
   fileName: Scalars['String']['output'];
   id: Scalars['ID']['output'];
   uploadedAt: Scalars['DateTime']['output'];
@@ -25,7 +25,7 @@ export type Attachment = {
 };
 
 export type Comment = {
-  __typename?: 'Comment';
+  __typename: 'Comment';
   author: Maybe<User>;
   authorId: Scalars['ID']['output'];
   body: Scalars['String']['output'];
@@ -43,8 +43,9 @@ export type CreateTicketInput = {
   title: Scalars['String']['input'];
 };
 
+
 export type DashboardMetrics = {
-  __typename?: 'DashboardMetrics';
+  __typename: 'DashboardMetrics';
   agingOver7d: Scalars['Int']['output'];
   byTeam: Array<TeamWorkload>;
   openCount: Scalars['Int']['output'];
@@ -53,13 +54,13 @@ export type DashboardMetrics = {
 };
 
 export type MePayload = {
-  __typename?: 'MePayload';
+  __typename: 'MePayload';
   tenant: Maybe<Tenant>;
   user: User;
 };
 
 export type Mutation = {
-  __typename?: 'Mutation';
+  __typename: 'Mutation';
   addComment: Comment;
   assignTicket: Ticket;
   createTicket: Ticket;
@@ -96,15 +97,16 @@ export type MutationUpdateTicketArgs = {
 };
 
 export type PageInfo = {
-  __typename?: 'PageInfo';
+  __typename: 'PageInfo';
   endCursor: Maybe<Scalars['String']['output']>;
   hasNextPage: Scalars['Boolean']['output'];
 };
 
 export type Query = {
-  __typename?: 'Query';
+  __typename: 'Query';
   dashboardMetrics: DashboardMetrics;
   me: Maybe<MePayload>;
+  tenantUsers: Array<User>;
   ticket: Maybe<Ticket>;
   tickets: TicketConnection;
 };
@@ -112,6 +114,11 @@ export type Query = {
 
 export type QueryDashboardMetricsArgs = {
   range: Scalars['String']['input'];
+};
+
+
+export type QueryTenantUsersArgs = {
+  activeOnly?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
 
@@ -127,7 +134,7 @@ export type QueryTicketsArgs = {
 };
 
 export type Subscription = {
-  __typename?: 'Subscription';
+  __typename: 'Subscription';
   ticketUpdated: Ticket;
 };
 
@@ -137,20 +144,20 @@ export type SubscriptionTicketUpdatedArgs = {
 };
 
 export type Team = {
-  __typename?: 'Team';
+  __typename: 'Team';
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
 };
 
 export type TeamWorkload = {
-  __typename?: 'TeamWorkload';
+  __typename: 'TeamWorkload';
   openTickets: Scalars['Int']['output'];
   teamId: Scalars['ID']['output'];
   teamName: Scalars['String']['output'];
 };
 
 export type Tenant = {
-  __typename?: 'Tenant';
+  __typename: 'Tenant';
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
   slug: Scalars['String']['output'];
@@ -163,7 +170,7 @@ export type TenantStatus =
   | 'Suspended';
 
 export type Ticket = {
-  __typename?: 'Ticket';
+  __typename: 'Ticket';
   assignee: Maybe<User>;
   assigneeId: Maybe<Scalars['ID']['output']>;
   attachments: Array<Attachment>;
@@ -188,13 +195,13 @@ export type Ticket = {
 };
 
 export type TicketConnection = {
-  __typename?: 'TicketConnection';
+  __typename: 'TicketConnection';
   edges: Array<TicketEdge>;
   pageInfo: PageInfo;
 };
 
 export type TicketEdge = {
-  __typename?: 'TicketEdge';
+  __typename: 'TicketEdge';
   cursor: Scalars['String']['output'];
   node: Ticket;
 };
@@ -209,7 +216,7 @@ export type TicketFilterInput = {
 };
 
 export type TicketHistoryEntry = {
-  __typename?: 'TicketHistoryEntry';
+  __typename: 'TicketHistoryEntry';
   action: Scalars['String']['output'];
   createdAt: Scalars['DateTime']['output'];
   details: Maybe<Scalars['String']['output']>;
@@ -238,7 +245,7 @@ export type UpdateTicketInput = {
 };
 
 export type User = {
-  __typename?: 'User';
+  __typename: 'User';
   email: Scalars['String']['output'];
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
@@ -252,10 +259,12 @@ export type UserRole =
   | 'SUPER_ADMIN'
   | 'TENANT_ADMIN';
 
+
+
 export type MeQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type MeQuery = { me: { user: { id: string, name: string, email: string, role: UserRole }, tenant: { id: string, name: string, slug: string, status: TenantStatus } | null } | null };
+export type MeQuery = { __typename: 'Query', me: { __typename: 'MePayload', user: { __typename: 'User', id: string, name: string, email: string, role: UserRole }, tenant: { __typename: 'Tenant', id: string, name: string, slug: string, status: TenantStatus } | null } | null };
 
 export type TicketsQueryVariables = Exact<{
   filter?: TicketFilterInput | null | undefined;
@@ -264,35 +273,35 @@ export type TicketsQueryVariables = Exact<{
 }>;
 
 
-export type TicketsQuery = { tickets: { edges: Array<{ cursor: string, node: { id: string, title: string, status: TicketStatus, priority: TicketPriority, slaBreached: boolean, slaDueAt: unknown, tags: Array<string>, updatedAt: unknown, assignee: { id: string, name: string } | null, team: { id: string, name: string } | null } }>, pageInfo: { endCursor: string | null, hasNextPage: boolean } } };
+export type TicketsQuery = { __typename: 'Query', tickets: { __typename: 'TicketConnection', edges: Array<{ __typename: 'TicketEdge', cursor: string, node: { __typename: 'Ticket', id: string, title: string, status: TicketStatus, priority: TicketPriority, slaBreached: boolean, slaDueAt: unknown, tags: Array<string>, updatedAt: unknown, assignee: { __typename: 'User', id: string, name: string } | null, team: { __typename: 'Team', id: string, name: string } | null } }>, pageInfo: { __typename: 'PageInfo', endCursor: string | null, hasNextPage: boolean } } };
 
 export type TicketQueryVariables = Exact<{
   id: string | number;
 }>;
 
 
-export type TicketQuery = { ticket: { id: string, title: string, description: string, status: TicketStatus, priority: TicketPriority, assigneeId: string | null, category: string | null, slaBreached: boolean, slaDueAt: unknown, tags: Array<string>, createdAt: unknown, updatedAt: unknown, relatedTicketIds: Array<string>, assignee: { id: string, name: string, email: string } | null, requester: { id: string, name: string, email: string } | null, team: { id: string, name: string } | null, comments: Array<{ id: string, body: string, createdAt: unknown, author: { id: string, name: string } | null }>, history: Array<{ id: string, action: string, details: string | null, createdAt: unknown }>, attachments: Array<{ id: string, fileName: string, url: string, uploadedAt: unknown }> } | null };
+export type TicketQuery = { __typename: 'Query', ticket: { __typename: 'Ticket', id: string, title: string, description: string, status: TicketStatus, priority: TicketPriority, assigneeId: string | null, category: string | null, slaBreached: boolean, slaDueAt: unknown, tags: Array<string>, createdAt: unknown, updatedAt: unknown, relatedTicketIds: Array<string>, assignee: { __typename: 'User', id: string, name: string, email: string } | null, requester: { __typename: 'User', id: string, name: string, email: string } | null, team: { __typename: 'Team', id: string, name: string } | null, comments: Array<{ __typename: 'Comment', id: string, body: string, createdAt: unknown, author: { __typename: 'User', id: string, name: string } | null }>, history: Array<{ __typename: 'TicketHistoryEntry', id: string, action: string, details: string | null, createdAt: unknown }>, attachments: Array<{ __typename: 'Attachment', id: string, fileName: string, url: string, uploadedAt: unknown }> } | null };
 
 export type TenantUsersQueryVariables = Exact<{
   activeOnly?: boolean | null | undefined;
 }>;
 
 
-export type TenantUsersQuery = { tenantUsers: Array<{ id: string, name: string, email: string, role: UserRole }> };
+export type TenantUsersQuery = { __typename: 'Query', tenantUsers: Array<{ __typename: 'User', id: string, name: string, email: string, role: UserRole }> };
 
 export type DashboardMetricsQueryVariables = Exact<{
   range: string;
 }>;
 
 
-export type DashboardMetricsQuery = { dashboardMetrics: { openCount: number, resolvedCount: number, slaBreaches: number, agingOver7d: number, byTeam: Array<{ teamId: string, teamName: string, openTickets: number }> } };
+export type DashboardMetricsQuery = { __typename: 'Query', dashboardMetrics: { __typename: 'DashboardMetrics', openCount: number, resolvedCount: number, slaBreaches: number, agingOver7d: number, byTeam: Array<{ __typename: 'TeamWorkload', teamId: string, teamName: string, openTickets: number }> } };
 
 export type CreateTicketMutationVariables = Exact<{
   input: CreateTicketInput;
 }>;
 
 
-export type CreateTicketMutation = { createTicket: { id: string, title: string, status: TicketStatus, priority: TicketPriority } };
+export type CreateTicketMutation = { __typename: 'Mutation', createTicket: { __typename: 'Ticket', id: string, title: string, status: TicketStatus, priority: TicketPriority } };
 
 export type UpdateTicketMutationVariables = Exact<{
   id: string | number;
@@ -300,7 +309,7 @@ export type UpdateTicketMutationVariables = Exact<{
 }>;
 
 
-export type UpdateTicketMutation = { updateTicket: { id: string, title: string, description: string, category: string | null, tags: Array<string>, status: TicketStatus, priority: TicketPriority, updatedAt: unknown } };
+export type UpdateTicketMutation = { __typename: 'Mutation', updateTicket: { __typename: 'Ticket', id: string, title: string, description: string, category: string | null, tags: Array<string>, status: TicketStatus, priority: TicketPriority, updatedAt: unknown } };
 
 export type AssignTicketMutationVariables = Exact<{
   id: string | number;
@@ -308,7 +317,7 @@ export type AssignTicketMutationVariables = Exact<{
 }>;
 
 
-export type AssignTicketMutation = { assignTicket: { id: string, assigneeId: string | null, assignee: { id: string, name: string } | null } };
+export type AssignTicketMutation = { __typename: 'Mutation', assignTicket: { __typename: 'Ticket', id: string, assigneeId: string | null, assignee: { __typename: 'User', id: string, name: string } | null } };
 
 export type AddCommentMutationVariables = Exact<{
   ticketId: string | number;
@@ -316,14 +325,14 @@ export type AddCommentMutationVariables = Exact<{
 }>;
 
 
-export type AddCommentMutation = { addComment: { id: string, body: string, createdAt: unknown, author: { id: string, name: string } | null } };
+export type AddCommentMutation = { __typename: 'Mutation', addComment: { __typename: 'Comment', id: string, body: string, createdAt: unknown, author: { __typename: 'User', id: string, name: string } | null } };
 
 export type DeleteTicketMutationVariables = Exact<{
   id: string | number;
 }>;
 
 
-export type DeleteTicketMutation = { deleteTicket: boolean };
+export type DeleteTicketMutation = { __typename: 'Mutation', deleteTicket: boolean };
 
 
 export const MeDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Me"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"me"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"user"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"email"}},{"kind":"Field","name":{"kind":"Name","value":"role"}}]}},{"kind":"Field","name":{"kind":"Name","value":"tenant"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}}]}}]}}]} as unknown as DocumentNode<MeQuery, MeQueryVariables>;
